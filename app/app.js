@@ -89,6 +89,7 @@ const ui = {
   calMonth: null,            // first of the month the calendar is showing
   display: '0', pending: null, op: null, fresh: true,
   view: 'calc', selTile: null,
+  histX: 0,                  // pixels the history row is dragged left of its start
   range: '7D',
   selDay: null, mealSelDay: null,   // selection keyed by day, so a slide cannot shift it
   scrub: 0                   // days the stats window is dragged back from its rest position
@@ -284,11 +285,13 @@ function go(screen) {
   if (screen === 'calc') {
     ui.view = 'calc';
     ui.selTile = null;
+    ui.histX = 0;
+    histSlider.stop();
   }
   if (screen !== 'home') ui.picker = false;
   // Stats always opens where it rests: a scrub is a way of looking around, not a place.
   if (screen === 'stats') {
-    cancelAnimationFrame(glide);
+    statsSlider.stop();
     ui.scrub = 0; ui.selDay = null; ui.mealSelDay = null;
   }
   ui.screen = screen;
@@ -595,10 +598,27 @@ function renderCalc() {
   if (!isCalc) renderHistory(entries);
 }
 
+// The parallelogram's slant, which is also how far each tile is pulled back over the
+// last so the two interlock instead of leaving a wedge of ground between them.
+const TILE_W = 172.67;
+const TILE_SLANT = 60;
+const TILE_GAP = 8;
+const TILE_PITCH = TILE_W - TILE_SLANT + TILE_GAP;
+const HIST_W = 354;          // the strip, the canvas less its 24px margins
+
+function histContent() {
+  const n = viewEntries().length;
+  return n ? (n - 1) * TILE_PITCH + TILE_W : 0;
+}
+
+/** How far the row can be dragged; zero while it still fits, which disables the drag. */
+function histOverflow() {
+  return Math.max(0, histContent() - HIST_W);
+}
+
 function renderHistory(entries) {
   const host = $('calc-history');
   clear(host);
-  host.style.paddingRight = entries.length < 3 ? entries.length * 60 + 'px' : '0px';
 
   if (entries.length === 0) {
     host.appendChild(el('div',
@@ -607,14 +627,22 @@ function renderHistory(entries) {
     return;
   }
 
-  const flex = entries.length < 3 ? 'none' : '1 1 0';
-  const width = entries.length < 3 ? '172.67px' : 'auto';
+  // Centred while the row fits, hard left once it overruns - so a short day still sits
+  // where it used to, and a long one starts at the beginning and runs off the edge.
+  const over = histOverflow();
+  ui.histX = clamp(ui.histX, 0, over);
+  const track = el('div',
+    'position:absolute;top:0;bottom:0;left:' + (over ? 0 : (HIST_W - histContent()) / 2).toFixed(2) +
+    'px;display:flex;align-items:stretch;gap:' + TILE_GAP + 'px;will-change:transform;' +
+    'transform:translateX(' + (-ui.histX).toFixed(2) + 'px)');
+  host.appendChild(track);
 
   entries.forEach(e => {
     const on = ui.selTile === e.t;
     const tile = el('div',
-      'position:relative;flex:' + flex + ';width:' + width + ';min-width:0;margin-right:-60px;' +
-      'clip-path:polygon(60px 0,100% 0,calc(100% - 60px) 100%,0 100%);display:flex;' +
+      'position:relative;flex:none;width:' + TILE_W + 'px;margin-right:-' + TILE_SLANT + 'px;' +
+      'clip-path:polygon(' + TILE_SLANT + 'px 0,100% 0,calc(100% - ' + TILE_SLANT +
+      'px) 100%,0 100%);display:flex;' +
       'flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden;' +
       'transition:background .1s,color .1s;background:' + (on ? '#000000' : '#FF0000') +
       ';color:' + (on ? '#FF0000' : '#270E0E'));
@@ -635,7 +663,7 @@ function renderHistory(entries) {
       ui.selTile = null;
       render();
     });
-    host.appendChild(tile);
+    track.appendChild(tile);
   });
 }
 
@@ -976,6 +1004,8 @@ $('calc-dial-btn').addEventListener('click', () => { if (equals()) go('home'); }
 $('calc-view-toggle').addEventListener('click', () => {
   ui.view = ui.view === 'calc' ? 'history' : 'calc';
   ui.selTile = null;
+  ui.histX = 0;
+  histSlider.stop();
   render();
 });
 
@@ -993,18 +1023,90 @@ $('stats-range-btn').addEventListener('click', () => {
   ui.selDay = null;
   ui.mealSelDay = null;
   ui.scrub = 0;              // slots change width, so an offset would not carry over
+  statsSlider.stop();
   render();
 });
 
 // ── scrubbing the stats window ───────────────────────────────────────────────
 // The chart and the meal panel drag as one: the content tracks the finger a slot at a
 // time, and a drag that ends on a bar must not also select it.
+/**
+ * A free horizontal drag with a throw on release. The caller says what counts as a grab,
+ * how a pixel of finger maps to its own units, where the limits are, and what to do when
+ * the value moves; everything about tracking the finger and shedding speed lives here.
+ *
+ * The pointer is captured only once the gesture is unmistakably a drag. Capturing on the
+ * press instead would retarget the click a plain tap ends with onto the zone, and the
+ * thing under the finger would never hear about it.
+ */
+function makeSlider(zone, cfg) {
+  let from = null, moved = false, glide = 0;
+
+  // Returns false once a limit has been reached, which is what stops the throw dead
+  // rather than letting it grind against the end.
+  function to(v) {
+    const b = cfg.limits();
+    const next = clamp(v, b.min, b.max);
+    if (next !== cfg.value()) cfg.move(next);
+    return next === v;
+  }
+
+  zone.addEventListener('pointerdown', e => {
+    cancelAnimationFrame(glide);
+    moved = false;
+    if (!e.target.closest(cfg.hit)) return;
+    from = { x: e.clientX, v: cfg.value(), t: e.timeStamp, vel: 0 };
+  });
+
+  zone.addEventListener('pointermove', e => {
+    if (!from) return;
+    const dx = (e.clientX - from.x) / (scale || 1);
+    if (!moved) {
+      if (Math.abs(dx) < 4) return;
+      moved = true;
+      if (cfg.onGrab) cfg.onGrab();
+      try { zone.setPointerCapture(e.pointerId); } catch (_) { /* gone already */ }
+    }
+    const before = cfg.value();
+    to(from.v + dx * cfg.perPx());
+    const dt = e.timeStamp - from.t;
+    if (dt > 0) from.vel = (cfg.value() - before) / dt;
+    from.t = e.timeStamp;
+  });
+
+  function release(e) {
+    if (!from) return;
+    let v = from.vel;
+    const dragged = moved;
+    from = null;
+    if (!dragged) return;
+    try { zone.releasePointerCapture(e.pointerId); } catch (_) { /* already gone */ }
+    if (Math.abs(v) <= cfg.floor * 5) return;
+    let last = performance.now();
+    const tick = now => {
+      const dt = Math.min(34, now - last);
+      last = now;
+      const room = to(cfg.value() + v * dt);
+      v *= Math.pow(0.9975, dt);
+      if (room && Math.abs(v) > cfg.floor) glide = requestAnimationFrame(tick);
+    };
+    glide = requestAnimationFrame(tick);
+  }
+  zone.addEventListener('pointerup', release);
+  zone.addEventListener('pointercancel', release);
+
+  // A drag that ends on something tappable must not also tap it.
+  zone.addEventListener('click', e => {
+    if (!moved) return;
+    e.stopPropagation();
+    e.preventDefault();
+  }, true);
+
+  return { stop: () => cancelAnimationFrame(glide) };
+}
+
 const SCRUB_ZONE = '#stats-chart,#stats-xlabels,#stats-meal-labels,#stats-meal-cols';
-const statsScreen = $('screen-stats');
 let domBase = 0;             // the whole-slot position the tracks were last built at
-let scrubFrom = null;
-let scrubMoved = false;
-let glide = 0;               // rAF handle for the throw after a release
 
 /**
  * Moves the four tracks to wherever ui.scrub has got to. No layout and no paint: each
@@ -1030,78 +1132,44 @@ function shiftTrack(id, px) {
   if (track) track.style.transform = 'translateX(' + px.toFixed(2) + 'px)';
 }
 
-/** Slides to a position, redrawing the hero only when a whole slot has gone by. */
-function scrubTo(v) {
-  const b = scrubBounds();
-  const next = clamp(v, b.min, b.max);
-  if (next === ui.scrub) return next === v;
-  const was = scrubBase();
-  ui.scrub = next;
-  applyScrub();
-  if (scrubBase() !== was) updateHero();
-  return next === v;
-}
-
-statsScreen.addEventListener('pointerdown', e => {
-  cancelAnimationFrame(glide);
-  scrubMoved = false;
-  if (!e.target.closest(SCRUB_ZONE)) return;
-  scrubFrom = { x: e.clientX, scrub: ui.scrub, t: e.timeStamp, v: 0 };
-});
-
-statsScreen.addEventListener('pointermove', e => {
-  if (!scrubFrom) return;
-  const cfg = STATS_RANGES[ui.range];
-  const dx = (e.clientX - scrubFrom.x) / (scale || 1);
-  if (!scrubMoved) {
-    if (Math.abs(dx) < 4) return;
-    scrubMoved = true;
+const statsSlider = makeSlider($('screen-stats'), {
+  hit: SCRUB_ZONE,
+  floor: 0.0004,                                   // days per ms
+  value: () => ui.scrub,
+  limits: scrubBounds,
+  perPx: () => {
+    const cfg = STATS_RANGES[ui.range];
+    return cfg.step / pitchOf(cfg.n, cfg.gap).pitch;
+  },
+  onGrab: () => {
     ui.selDay = null;
     ui.mealSelDay = null;
     render();
-    // Captured only once the gesture is unmistakably a drag. Capturing on the press
-    // instead would retarget the click a plain tap ends with onto this element, and
-    // the bar under the finger would never hear about it.
-    try { statsScreen.setPointerCapture(e.pointerId); } catch (_) { /* gone already */ }
+  },
+  move: v => {
+    const was = scrubBase();
+    ui.scrub = v;
+    applyScrub();
+    if (scrubBase() !== was) updateHero();          // the one thing that reads the window
   }
-  const days = (dx / pitchOf(cfg.n, cfg.gap).pitch) * cfg.step;
-  const before = ui.scrub;
-  scrubTo(scrubFrom.scrub + days);
-  const dt = e.timeStamp - scrubFrom.t;
-  if (dt > 0) scrubFrom.v = (ui.scrub - before) / dt;   // days per ms, for the throw
-  scrubFrom.t = e.timeStamp;
 });
 
-/** Carries the window on after the finger lifts, shedding speed until it settles. */
-function throwScrub(v) {
-  let last = performance.now();
-  const tick = now => {
-    const dt = Math.min(34, now - last);
-    last = now;
-    const room = scrubTo(ui.scrub + v * dt);
-    v *= Math.pow(0.9975, dt);
-    if (room && Math.abs(v) > 0.0004) glide = requestAnimationFrame(tick);
-  };
-  glide = requestAnimationFrame(tick);
-}
-
-function scrubEnd(e) {
-  if (!scrubFrom) return;
-  const v = scrubFrom.v;
-  const dragged = scrubMoved;
-  scrubFrom = null;
-  if (!dragged) return;
-  try { statsScreen.releasePointerCapture(e.pointerId); } catch (_) { /* already gone */ }
-  if (Math.abs(v) > 0.002) throwScrub(v);
-}
-statsScreen.addEventListener('pointerup', scrubEnd);
-statsScreen.addEventListener('pointercancel', scrubEnd);
-
-statsScreen.addEventListener('click', e => {
-  if (!scrubMoved) return;
-  e.stopPropagation();
-  e.preventDefault();
-}, true);
+// Tiles keep their width and run off to the right rather than squeezing up, so the
+// finger drags the row the same way it drags the chart. Content moves with the finger,
+// which means the offset from the left runs the other way.
+const histSlider = makeSlider($('screen-calc'), {
+  hit: '#calc-history',
+  floor: 0.02,                                     // pixels per ms
+  perPx: () => -1,
+  value: () => ui.histX,
+  limits: () => ({ min: 0, max: histOverflow() }),
+  onGrab: () => { ui.selTile = null; render(); },
+  move: v => {
+    ui.histX = v;
+    const track = $('calc-history').firstChild;
+    if (track) track.style.transform = 'translateX(' + (-v).toFixed(2) + 'px)';
+  }
+});
 
 // hardware keyboard, as the prototype supported
 window.addEventListener('keydown', e => {
