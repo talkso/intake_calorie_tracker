@@ -185,7 +185,7 @@
   <div style="position:absolute;left:24px;right:24px;top:198px;height:1px;background:#9BA08B;z-index:7"></div>
   <div style="position:absolute;left:24px;right:24px;top:234px;height:1px;background:#9BA08B;z-index:7"></div>
 
-  <div style="position:absolute;left:24px;right:24px;top:236px;height:248px;z-index:4">
+  <div id="stats-chart" class="scrubbable" style="position:absolute;left:24px;right:24px;top:236px;height:248px;z-index:4">
     <div style="position:absolute;left:0;right:0;bottom:0;height:2px;background:#8F9482"></div>
 
     <div id="stats-bars" style="position:absolute;left:0;right:0;top:0;bottom:2px;display:flex;align-items:flex-end;gap:10px"></div>
@@ -195,7 +195,7 @@
     </div>
   </div>
 
-  <div id="stats-xlabels" style="position:absolute;left:24px;right:24px;top:488px;height:12px;z-index:6"></div>
+  <div id="stats-xlabels" class="scrubbable" style="position:absolute;left:24px;right:24px;top:488px;height:12px;z-index:6"></div>
 
   <!-- Backing bled past the canvas edge so the panel's own edge antialiases against red
        rather than the sage ground when the stage is scaled by a fraction. Clipped away
@@ -203,11 +203,11 @@
   <div style="position:absolute;left:-2px;right:-2px;top:500px;bottom:0;background:#FF0000;z-index:8"></div>
 
   <div style="position:absolute;left:0;right:0;top:500px;bottom:0;background:#FF0000;overflow:hidden;z-index:8">
-    <div id="stats-meal-labels" style="position:absolute;left:24px;right:24px;top:18px;height:12px;color:#270E0E"></div>
+    <div id="stats-meal-labels" class="scrubbable" style="position:absolute;left:24px;right:24px;top:18px;height:12px;color:#270E0E"></div>
 
     <div style="position:absolute;left:24px;right:24px;top:31px;height:2px;background:rgba(39,14,14,.55)"></div>
 
-    <div id="stats-meal-cols" style="position:absolute;left:24px;right:24px;top:37px;height:176px;display:flex;align-items:flex-start;gap:10px"></div>
+    <div id="stats-meal-cols" class="scrubbable" style="position:absolute;left:24px;right:24px;top:37px;height:176px;display:flex;align-items:flex-start;gap:10px"></div>
 
     <div id="stats-sel-times" style="position:absolute;left:-2px;right:-2px;top:235px;bottom:118px;background:#270E0E;padding:14px 26px;box-sizing:border-box;display:none;flex-direction:column;justify-content:flex-start;gap:12px;overflow:hidden">
       <div id="stats-sel-caption" style="color:#FF0000;font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.2em;white-space:nowrap"></div>

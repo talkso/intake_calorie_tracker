@@ -89,7 +89,8 @@ const ui = {
   calMonth: null,            // first of the month the calendar is showing
   display: '0', pending: null, op: null, fresh: true,
   view: 'calc', selTile: null,
-  range: '7D', sel: null, mealSel: null
+  range: '7D', sel: null, mealSel: null,
+  scrub: 0                   // days the stats window is dragged back from its rest position
 };
 
 const PICK_SIZE = 123;       // the badge's diameter, reused for every day circle
@@ -284,6 +285,8 @@ function go(screen) {
     ui.selTile = null;
   }
   if (screen !== 'home') ui.picker = false;
+  // Stats always opens where it rests: a scrub is a way of looking around, not a place.
+  if (screen === 'stats') { ui.scrub = 0; ui.sel = null; ui.mealSel = null; }
   ui.screen = screen;
   for (const s of ['home', 'calc', 'stats', 'calendar']) {
     $('screen-' + s).classList.toggle('active', s === screen);
@@ -633,12 +636,40 @@ function renderHistory(entries) {
 }
 
 // ══════════════════════════ STATS ══════════════════════════
-function buckets(range, offset) {
-  const cfg = STATS_RANGES[range];
+// Today sits where Friday does in the seven-day view rather than hard against the right
+// edge, so every range keeps the same slice of itself ahead of today. Both tracks hang
+// off one window end, which is what keeps the sage chart and the red panel on the same
+// days even though they bucket at different widths.
+const TODAY_AT = 4.5 / 7;    // where Friday's slot centres in a row of seven
+
+// Solving (n - f - 0.5) / n = TODAY_AT for the slot count f left ahead of today. Taking
+// the share of slots instead would drift, because today's own slot counts on the left.
+const futureSlots = cfg => Math.max(1, Math.round(cfg.n * (1 - TODAY_AT) - 0.5));
+
+/** Day index of the window's most recent slot. Negative days are in the future. */
+function windowEnd() {
+  const cfg = STATS_RANGES[ui.range];
+  return ui.scrub - futureSlots(cfg) * cfg.step;
+}
+
+/** How far the window may be dragged: back to the oldest entry, forward only a little. */
+function scrubBounds() {
+  const cfg = STATS_RANGES[ui.range];
   const span = cfg.n * cfg.step;
+  const oldest = store.entries.length
+    ? (daysBack(new Date(store.entries[0].t)) || 0) : 0;
+  return {
+    min: -Math.ceil(futureSlots(cfg) / 2) * cfg.step,
+    max: Math.max(span, oldest + futureSlots(cfg) * cfg.step)
+  };
+}
+
+function buckets(range) {
+  const cfg = STATS_RANGES[range];
+  const end = windowEnd();
   const out = [];
   for (let i = 0; i < cfg.n; i++) {
-    const d = span * offset + (cfg.n - 1 - i) * cfg.step;
+    const d = end + (cfg.n - 1 - i) * cfg.step;
     let sum = 0;
     for (let k = 0; k < cfg.step; k++) sum += dayCal(d + k);
     out.push({ d: d, v: Math.round(sum / cfg.step) });
@@ -648,7 +679,7 @@ function buckets(range, offset) {
 
 function mealIdxForDay(d) {
   const c = MEALS_CFG[ui.range];
-  const i = c.n - 1 - Math.floor(d / c.step);
+  const i = c.n - 1 - Math.floor((d - windowEnd()) / c.step);
   return i >= 0 && i < c.n ? i : null;
 }
 
@@ -656,7 +687,7 @@ function barIdxForDay(d) {
   const c = STATS_RANGES[ui.range];
   const m = MEALS_CFG[ui.range];
   if (m.step > c.step * 2) return null;
-  const i = c.n - 1 - Math.floor(d / c.step);
+  const i = c.n - 1 - Math.floor((d - windowEnd()) / c.step);
   return i >= 0 && i < c.n ? i : null;
 }
 
@@ -681,12 +712,16 @@ function renderStats() {
   const g = goal();
   const range = ui.range;
   const cfg = STATS_RANGES[range];
-  const cur = buckets(range, 0);
+  const cur = buckets(range);
   const n = cur.length;
   const barScale = g / GOAL_AT;
   const sel = ui.sel;
   const selBar = sel != null ? cur[sel] : null;
-  const curAvg = Math.round(cur.reduce((a, b) => a + b.v, 0) / n);
+  // Slots ahead of today hold nothing by definition; averaging them in would just
+  // scale the figure down by the width of the headroom.
+  const real = cur.filter(b => b.d >= 0);
+  const curAvg = real.length
+    ? Math.round(real.reduce((a, b) => a + b.v, 0) / real.length) : 0;
 
   $('stats-hero-caption').textContent = selBar
     ? (cfg.step === 1
@@ -704,8 +739,10 @@ function renderStats() {
   clear(barHost);
   barHost.style.gap = cfg.gap + 'px';
   cur.forEach((b, i) => {
+    const ahead = b.d < 0;
     const slot = el('div',
-      'flex:1 1 0;min-width:0;height:100%;display:flex;align-items:flex-end;justify-content:center;cursor:pointer');
+      'flex:1 1 0;min-width:0;height:100%;display:flex;align-items:flex-end;justify-content:center' +
+      (ahead ? '' : ';cursor:pointer'));
     const fill = sel == null
       ? (b.v > g ? '#FF0000' : '#270E0E')
       : (sel === i ? '#FF0000' : '#A9AE99');
@@ -713,11 +750,13 @@ function renderStats() {
       'width:' + cfg.w + ';max-width:100%;height:' +
       Math.min(100, (b.v / barScale) * 100).toFixed(2) + '%;background:' + fill +
       ';border-radius:' + cfg.cap));
-    slot.addEventListener('click', () => {
-      if (ui.sel === i) { ui.sel = null; ui.mealSel = null; }
-      else { ui.sel = i; ui.mealSel = mealIdxForDay(b.d); }
-      render();
-    });
+    if (!ahead) {
+      slot.addEventListener('click', () => {
+        if (ui.sel === i) { ui.sel = null; ui.mealSel = null; }
+        else { ui.sel = i; ui.mealSel = mealIdxForDay(b.d); }
+        render();
+      });
+    }
     barHost.appendChild(slot);
   });
 
@@ -729,18 +768,37 @@ function renderStats() {
     cur.forEach((b, i) => {
       xHost.appendChild(el('div',
         labelStyle + ';left:' + colPos(i, n, cfg.gap) + ';transform:translateX(-50%)',
-        i === n - 1 ? 'today' : dayAt(b.d).toLocaleDateString('en-US', { weekday: 'narrow' })));
+        b.d === 0 ? 'today' : dayAt(b.d).toLocaleDateString('en-US', { weekday: 'narrow' })));
     });
   } else {
-    const mid = Math.floor(n / 2);
-    xHost.appendChild(el('div', labelStyle + ';left:0%',
-      dayAt(cur[0].d).getDate() + ' ' + mon(cur[0].d)));
-    xHost.appendChild(el('div', labelStyle + ';left:50%;transform:translateX(-50%)',
-      dayAt(cur[mid].d).getDate() + ' ' + mon(cur[mid].d)));
-    xHost.appendChild(el('div', labelStyle + ';left:100%;transform:translateX(-100%)', 'today'));
+    endLabels(xHost, labelStyle, cur, cfg.gap);
   }
 
   renderMeals();
+}
+
+/**
+ * Dates at the ends of a dense track, plus "today" wherever it now falls. The midpoint
+ * label is dropped when today would land on top of it, since today is the one that says
+ * where in time you are.
+ */
+function endLabels(host, style, cols, gap) {
+  const n = cols.length;
+  const todayI = cols.findIndex(c => c.d === 0);
+  const at = i => (i + 0.5) / n;
+  const date = c => dayAt(c.d).getDate() + ' ' + mon(c.d);
+
+  host.appendChild(el('div', style + ';left:0%', date(cols[0])));
+  host.appendChild(el('div', style + ';left:100%;transform:translateX(-100%)',
+    date(cols[n - 1])));
+  if (todayI >= 0) {
+    host.appendChild(el('div',
+      style + ';left:' + colPos(todayI, n, gap) + ';transform:translateX(-50%)', 'today'));
+  }
+  const mid = Math.floor(n / 2);
+  if (todayI < 0 || Math.abs(at(mid) - at(todayI)) > 0.2) {
+    host.appendChild(el('div', style + ';left:50%;transform:translateX(-50%)', date(cols[mid])));
+  }
 }
 
 function colPos(i, n, gap) {
@@ -755,8 +813,9 @@ function renderMeals() {
   const n = cfg.n;
 
   const cols = [];
+  const end = windowEnd();
   for (let i = 0; i < n; i++) {
-    const d = (n - 1 - i) * cfg.step;
+    const d = end + (n - 1 - i) * cfg.step;
     let sum = 0;
     for (let k = 0; k < cfg.step; k++) sum += mealsAt(d + k);
     cols.push({ d: d, v: Math.min(ROWS, Math.round(sum / cfg.step)) });
@@ -777,12 +836,7 @@ function renderMeals() {
         ls + ';left:' + colPos(i, n, cfg.cg) + ';transform:translateX(-50%)', String(c.v)));
     });
   } else {
-    const mid = Math.floor(n / 2);
-    labelHost.appendChild(el('div', ls + ';left:0%',
-      dayAt(cols[0].d).getDate() + ' ' + mon(cols[0].d)));
-    labelHost.appendChild(el('div', ls + ';left:50%;transform:translateX(-50%)',
-      dayAt(cols[mid].d).getDate() + ' ' + mon(cols[mid].d)));
-    labelHost.appendChild(el('div', ls + ';left:100%;transform:translateX(-100%)', 'today'));
+    endLabels(labelHost, ls, cols, cfg.cg);
   }
 
   // dot matrix
@@ -793,9 +847,12 @@ function renderMeals() {
     const on = sel === i;
     const fill = on ? '#000000' : dimmed ? 'rgba(39,14,14,.34)' : '#270E0E';
     const off = on ? 'rgba(0,0,0,.2)' : dimmed ? 'rgba(39,14,14,.12)' : 'rgba(39,14,14,.22)';
+    // A column whose every day is still ahead of today can never hold a meal, so it
+    // does not answer to a tap. Columns that straddle today still do.
+    const ahead = c.d + cfg.step - 1 < 0;
     const col = el('div',
       'position:relative;flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:' +
-      cfg.dg + 'px;padding-bottom:26px;cursor:pointer');
+      cfg.dg + 'px;padding-bottom:26px' + (ahead ? '' : ';cursor:pointer'));
     for (let r = 0; r < ROWS; r++) {
       const lit = r < c.v;
       const dot = el('div',
@@ -807,11 +864,13 @@ function renderMeals() {
         (label ? '#FF0000' : 'transparent'), label));
       col.appendChild(dot);
     }
-    col.addEventListener('click', () => {
-      if (ui.mealSel === i) { ui.mealSel = null; ui.sel = null; }
-      else { ui.mealSel = i; ui.sel = barIdxForDay(c.d); }
-      render();
-    });
+    if (!ahead) {
+      col.addEventListener('click', () => {
+        if (ui.mealSel === i) { ui.mealSel = null; ui.sel = null; }
+        else { ui.mealSel = i; ui.sel = barIdxForDay(c.d); }
+        render();
+      });
+    }
     colHost.appendChild(col);
   });
 
@@ -893,8 +952,61 @@ $('stats-range-btn').addEventListener('click', () => {
   ui.range = RANGES[(RANGES.indexOf(ui.range) + 1) % RANGES.length];
   ui.sel = null;
   ui.mealSel = null;
+  ui.scrub = 0;              // slots change width, so a slot offset would not carry over
   render();
 });
+
+// ── scrubbing the stats window ───────────────────────────────────────────────
+// The chart and the meal panel drag as one: the content tracks the finger a slot at a
+// time, and a drag that ends on a bar must not also select it.
+const SCRUB_ZONE = '#stats-chart,#stats-xlabels,#stats-meal-labels,#stats-meal-cols';
+const statsScreen = $('screen-stats');
+let scrubFrom = null;
+let scrubMoved = false;
+
+statsScreen.addEventListener('pointerdown', e => {
+  scrubMoved = false;
+  if (!e.target.closest(SCRUB_ZONE)) return;
+  scrubFrom = { x: e.clientX, scrub: ui.scrub };
+});
+
+statsScreen.addEventListener('pointermove', e => {
+  if (!scrubFrom) return;
+  const cfg = STATS_RANGES[ui.range];
+  const dx = (e.clientX - scrubFrom.x) / (scale || 1);
+  if (!scrubMoved) {
+    if (Math.abs(dx) < 4) return;
+    scrubMoved = true;
+    // Captured only once the gesture is unmistakably a drag. Capturing on the press
+    // instead would retarget the click a plain tap ends with onto this element, and
+    // the bar under the finger would never hear about it.
+    try { statsScreen.setPointerCapture(e.pointerId); } catch (_) { /* gone already */ }
+  }
+  const b = scrubBounds();
+  const slotPx = 354 / cfg.n;            // the chart spans the canvas less its 24px margins
+  const next = clamp(scrubFrom.scrub + Math.round(dx / slotPx) * cfg.step, b.min, b.max);
+  if (next === ui.scrub) return;
+  ui.scrub = next;
+  ui.sel = null;
+  ui.mealSel = null;
+  render();
+});
+
+function scrubEnd(e) {
+  if (!scrubFrom) return;
+  scrubFrom = null;
+  if (scrubMoved) {
+    try { statsScreen.releasePointerCapture(e.pointerId); } catch (_) { /* already gone */ }
+  }
+}
+statsScreen.addEventListener('pointerup', scrubEnd);
+statsScreen.addEventListener('pointercancel', scrubEnd);
+
+statsScreen.addEventListener('click', e => {
+  if (!scrubMoved) return;
+  e.stopPropagation();
+  e.preventDefault();
+}, true);
 
 // hardware keyboard, as the prototype supported
 window.addEventListener('keydown', e => {

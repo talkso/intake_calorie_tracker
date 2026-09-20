@@ -81,6 +81,14 @@ body {
 
 #home-cal-btn:active span { background: #7A2A18 !important; }
 
+/* The stats window is dragged horizontally, so the browser must not read the gesture as
+   a scroll or a page swipe first. Nothing on this screen scrolls. */
+.scrubbable {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .cal-cell { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .cal-cell:active { transform: scale(.92); }
 
