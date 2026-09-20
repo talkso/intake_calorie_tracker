@@ -226,7 +226,9 @@ function screenBox(el) {
 function coverIntervals() {
   return [
     { box: $('calc-pct-ink'), paint: $('calc-pct') },
-    { box: $('calc-title'), paint: $('calc-title') }
+    { box: $('calc-title'), paint: $('calc-title') },
+    // Sits over the lower left of the band, so a full ring swallows it completely.
+    { box: $('calc-view-toggle'), paint: $('calc-view-toggle') }
   ].map(t => {
     const [x0, y0, x1, y1] = screenBox(t.box);
     let enter = Infinity, exit = -Infinity;
@@ -537,9 +539,11 @@ function renderCalc() {
   const logged = viewLogged();
   const cur = parseFloat(ui.display) || 0;
   const preview = ui.op != null && !ui.fresh ? apply(ui.pending, cur, ui.op) : cur;
-  const pct = clamp((logged + Math.max(preview, 0)) / g, 0, 1);
+  // The ring can only say 100%, but the readout says what it actually is.
+  const raw = (logged + Math.max(preview, 0)) / g;
+  const pct = clamp(raw, 0, 1);
 
-  $('calc-pct-ink').textContent = Math.round(pct * 100) + '%';
+  $('calc-pct-ink').textContent = Math.round(raw * 100) + '%';
   renderSegments(ui.display);
 
   // Keep the arc's leading edge out of the type on the band. Half-covered, a word has no
