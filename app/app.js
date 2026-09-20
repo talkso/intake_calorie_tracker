@@ -163,6 +163,16 @@ function conicMask(from, sweep) {
          'deg,rgba(0,0,0,0) ' + (sweep + 0.7) + 'deg 360deg)';
 }
 
+function capMask(pt) {
+  return 'radial-gradient(circle ' + CAP_R + 'px at ' + pt.x.toFixed(2) + 'px ' +
+         pt.y.toFixed(2) + 'px,#000 99%,rgba(0,0,0,0) 100%)';
+}
+
+function placeCap(el, pt) {
+  el.style.left = (pt.x - CAP_R).toFixed(2) + 'px';
+  el.style.top = (pt.y - CAP_R).toFixed(2) + 'px';
+}
+
 // ── stage scaling ────────────────────────────────────────────────────────────
 const stage = $('stage');
 const backdrop = $('backdrop');
@@ -228,18 +238,20 @@ function renderHome() {
   fill.style.webkitMask = mask;
   fill.style.mask = mask;
 
+  const tail = bandPoint(HOME_ARC_ANCHOR, BAND_R);
   const capEl = $('home-arc-cap');
   capEl.style.display = on ? 'block' : 'none';
-  capEl.style.left = (cap.x - CAP_R).toFixed(2) + 'px';
-  capEl.style.top = (cap.y - CAP_R).toFixed(2) + 'px';
+  placeCap(capEl, cap);
+  $('home-arc-tail').style.display = on ? 'block' : 'none';
 
-  // The bright tick row is clipped to the filled wedge plus its cap.
-  const capMask = 'radial-gradient(circle ' + CAP_R + 'px at ' + cap.x.toFixed(2) + 'px ' +
-                  cap.y.toFixed(2) + 'px,#000 99%,rgba(0,0,0,0) 100%)';
+  // The bright tick row is clipped to the filled wedge plus a cap at each end.
+  const layers = mask + ',' + capMask(cap) + ',' + capMask(tail);
   const clip = $('home-tick-clip');
   clip.style.display = on ? 'block' : 'none';
-  clip.style.webkitMaskImage = mask + ',' + capMask;
-  clip.style.maskImage = mask + ',' + capMask;
+  clip.style.webkitMaskImage = layers;
+  clip.style.maskImage = layers;
+  clip.style.webkitMaskComposite = 'source-over,source-over';
+  clip.style.maskComposite = 'add,add';
 }
 
 // ══════════════════════════ CALCULATOR ══════════════════════════
@@ -346,13 +358,11 @@ function renderCalc() {
   fill.style.webkitMask = mask;
   fill.style.mask = mask;
 
-  // Leading cap rides the sweep; the oversized blob sits at the fixed tail, where the
-  // prototype hand-placed it, so it does not move.
+  // Leading cap rides the sweep; the tail cap is pinned at the anchor.
   const capEl = $('calc-arc-cap');
   capEl.style.display = on ? 'block' : 'none';
-  capEl.style.left = (cap.x - CAP_R).toFixed(2) + 'px';
-  capEl.style.top = (cap.y - CAP_R).toFixed(2) + 'px';
-  $('calc-arc-blob').style.display = on ? 'block' : 'none';
+  placeCap(capEl, cap);
+  $('calc-arc-tail').style.display = on ? 'block' : 'none';
 
   const entries = todayEntries().slice(-16);
 
