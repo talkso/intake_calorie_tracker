@@ -68,3 +68,18 @@ body {
 .range-btn:active { background: rgba(39, 14, 14, .7) !important; color: #FF0000 !important; }
 
 .tile { cursor: pointer; user-select: none; -webkit-user-select: none; }
+
+/* ── day picker ── */
+
+.noscrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.noscrollbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+.day-badge:active { background-color: #F04A34 !important; }
+
+.day-opt { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.day-opt:active { background-color: #270E0E !important; color: #FF0000 !important; }
+
+#home-cal-btn:active span { background: #7A2A18 !important; }
+
+.cal-cell { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.cal-cell:active { transform: scale(.92); }

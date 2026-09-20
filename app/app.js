@@ -84,10 +84,17 @@ function save() {
 // ── ephemeral state ──────────────────────────────────────────────────────────
 const ui = {
   screen: 'home',
+  day: 0,                    // days back from today that Home is showing
+  picker: false,
+  calMonth: null,            // first of the month the calendar is showing
   display: '0', pending: null, op: null, fresh: true,
   view: 'calc', selTile: null,
   range: '7D', sel: null, mealSel: null
 };
+
+const PICK_SIZE = 123;       // the badge's diameter, reused for every day circle
+const PICK_STEP = 92;        // so consecutive circles overlap by 31px
+const PICK_VIEW = 491;       // four circles plus the faded fifth
 
 // ── derived data: real entries only ──────────────────────────────────────────
 let dayIndex = new Map();
@@ -114,11 +121,30 @@ function mealsAt(d) { const b = dayData(d); return b ? Math.min(ROWS, b.times.le
 function dayTimes(d) { const b = dayData(d); return b ? b.times.slice(0, ROWS) : []; }
 
 const goal = () => store.goal;
-const todayLogged = () => dayCal(0);
-const todayEntries = () => store.entries.filter(e => dayKey(new Date(e.t)) === dayKey(new Date()));
+const viewLogged = () => dayCal(ui.day);
+const viewEntries = () => {
+  const k = dayKey(dayAt(ui.day));
+  return store.entries.filter(e => dayKey(new Date(e.t)) === k);
+};
 
+/** Days back from today, or null if the date is in the future. */
+function daysBack(date) {
+  const a = new Date(date); a.setHours(0, 0, 0, 0);
+  const b = new Date(); b.setHours(0, 0, 0, 0);
+  const n = Math.round((b - a) / 86400000);
+  return n < 0 ? null : n;
+}
+
+function dayLabel(d) {
+  const dt = dayAt(d);
+  if (d <= 2) return dt.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() + '.';
+  return (dt.getMonth() + 1) + '/' + dt.getDate();
+}
+
+// Entries land on the day Home is showing, so backfilling a missed meal goes where you
+// are looking rather than always onto today.
 function logEntry(v) {
-  store.entries.push({ v: v, t: Date.now() });
+  store.entries.push({ v: v, t: dayAt(ui.day).getTime() });
   store.entries.sort((a, b) => a.t - b.t);
   save();
   reindex();
@@ -236,7 +262,7 @@ function layout() {
 }
 
 function paintBackdrop() {
-  if (ui.screen === 'home') backdrop.style.background = '#FF0000';
+  if (ui.screen === 'home' || ui.screen === 'calendar') backdrop.style.background = '#FF0000';
   else if (ui.screen === 'calc') backdrop.style.background = '#270E0E';
   else {
     // Stats is two-tone: sage above the red meals panel, which starts at y=500.
@@ -253,8 +279,9 @@ function go(screen) {
     ui.view = 'calc';
     ui.selTile = null;
   }
+  if (screen !== 'home') ui.picker = false;
   ui.screen = screen;
-  for (const s of ['home', 'calc', 'stats']) {
+  for (const s of ['home', 'calc', 'stats', 'calendar']) {
     $('screen-' + s).classList.toggle('active', s === screen);
   }
   paintBackdrop();
@@ -264,14 +291,14 @@ function go(screen) {
 // ══════════════════════════ HOME ══════════════════════════
 function renderHome() {
   const g = goal();
-  const logged = todayLogged();
+  const logged = viewLogged();
   const pct = clamp(logged / g, 0, 1);
   const sweep = pct * 360;
 
   $('home-left-val').textContent = String(Math.round(g - logged));
   $('home-max').textContent = g + ' cal maximum.';
-  $('home-day').textContent =
-    new Date().toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() + '.';
+  $('home-day').textContent = dayLabel(ui.day);
+  renderPicker();
 
   const lead = HOME_ARC_ANCHOR - sweep;
   const on = pct > 0;
@@ -297,6 +324,114 @@ function renderHome() {
   clip.style.maskImage = layers;
   clip.style.webkitMaskComposite = 'source-over,source-over';
   clip.style.maskComposite = 'add,add';
+}
+
+/** How far back the picker lets you scroll: to the first entry, but never a stub list. */
+function pickerSpan() {
+  if (!store.entries.length) return 13;
+  return clamp(daysBack(new Date(store.entries[0].t)) || 0, 13, 400);
+}
+
+const DAY_OPT_STYLE =
+  'position:relative;width:' + PICK_SIZE + 'px;height:' + PICK_SIZE + 'px;border-radius:50%;' +
+  'box-sizing:border-box;background:#FF0000;border:3px solid #270E0E;color:#270E0E;' +
+  'display:flex;align-items:center;justify-content:center;flex:none;' +
+  'font:900 21px/1 Archivo,sans-serif;letter-spacing:-.03em;' +
+  'margin-bottom:' + (PICK_SIZE - PICK_STEP) * -1 + 'px;';
+
+function renderPicker() {
+  const open = ui.picker;
+  $('home-picker').style.display = open ? 'block' : 'none';
+  $('home-picker-backdrop').style.display = open ? 'block' : 'none';
+  $('home-cal-btn').style.display = open ? 'flex' : 'none';
+  // The stack's first circle lands on the badge, so the badge itself steps aside.
+  $('home-day-btn').style.visibility = open ? 'hidden' : 'visible';
+  if (!open) return;
+
+  const host = $('home-picker-scroll');
+  clear(host);
+  host.style.paddingBottom = (PICK_VIEW - PICK_SIZE) + 'px';
+  const span = pickerSpan();
+  for (let d = 0; d <= span; d++) {
+    const opt = el('div', DAY_OPT_STYLE + 'z-index:' + (span - d), dayLabel(d));
+    opt.className = 'day-opt';
+    opt.addEventListener('click', () => {
+      ui.day = d;
+      ui.picker = false;
+      render();
+    });
+    host.appendChild(opt);
+  }
+  host.scrollTop = ui.day * PICK_STEP;
+}
+
+// ══════════════════════════ CALENDAR ══════════════════════════
+function monthStart(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
+
+function renderCalendar() {
+  const m = ui.calMonth || (ui.calMonth = monthStart(dayAt(ui.day)));
+  $('cal-month').textContent = m.toLocaleDateString('en-US', { month: 'long' }).toUpperCase();
+
+  const dow = $('cal-dow');
+  clear(dow);
+  for (const l of ['S', 'M', 'T', 'W', 'T', 'F', 'S']) {
+    dow.appendChild(el('div',
+      "text-align:center;font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;opacity:.65", l));
+  }
+
+  const grid = $('cal-grid');
+  clear(grid);
+  const pad = new Date(m.getFullYear(), m.getMonth(), 1).getDay();
+  const days = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+  for (let i = 0; i < pad; i++) grid.appendChild(el('div', 'aspect-ratio:1'));
+
+  let loggedDays = 0, total = 0;
+  for (let n = 1; n <= days; n++) {
+    const date = new Date(m.getFullYear(), m.getMonth(), n);
+    const bucket = dayIndex.get(dayKey(date));
+    const back = daysBack(date);
+    const future = back === null;
+    const selected = !future && back === ui.day;
+    if (bucket) { loggedDays++; total += bucket.cal; }
+
+    const cell = el('div',
+      'aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;' +
+      "box-sizing:border-box;font:600 13px/1 'IBM Plex Mono',monospace;transition:transform .1s;" +
+      (bucket ? 'background:#270E0E;color:#FF0000;'
+              : 'background:transparent;color:#270E0E;box-shadow:inset 0 0 0 1.5px rgba(39,14,14,.35);') +
+      (future ? 'opacity:.28;' : '') +
+      (selected ? 'outline:2.5px solid #270E0E;outline-offset:2px;' : ''), String(n));
+    if (!future) {
+      cell.className = 'cal-cell';
+      cell.addEventListener('click', () => { ui.day = back; go('home'); });
+    }
+    grid.appendChild(cell);
+  }
+
+  $('cal-summary').textContent = m.getFullYear() + ' · ' + (loggedDays
+    ? loggedDays + (loggedDays === 1 ? ' DAY' : ' DAYS') + ' LOGGED · AVG ' +
+      nf(Math.round(total / loggedDays)) + ' CAL'
+    : 'NOTHING LOGGED');
+
+  // Weekday, day, month - the order the stats screen already uses.
+  const sel = dayAt(ui.day);
+  const selCal = dayCal(ui.day);
+  $('cal-selected').textContent =
+    sel.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() + ' ' +
+    sel.getDate() + ' ' + mon(ui.day).toUpperCase() +
+    ' · ' + (selCal ? nf(selCal) + ' cal' : 'nothing logged');
+
+  // Never page past the current month.
+  const now = monthStart(new Date());
+  $('cal-next').style.visibility = m >= now ? 'hidden' : 'visible';
+}
+
+function shiftMonth(delta) {
+  const m = ui.calMonth || monthStart(new Date());
+  const next = new Date(m.getFullYear(), m.getMonth() + delta, 1);
+  if (next > monthStart(new Date())) return;
+  ui.calMonth = next;
+  render();
 }
 
 // ══════════════════════════ CALCULATOR ══════════════════════════
@@ -384,7 +519,7 @@ function renderSegments(str) {
 
 function renderCalc() {
   const g = goal();
-  const logged = todayLogged();
+  const logged = viewLogged();
   const cur = parseFloat(ui.display) || 0;
   const preview = ui.op != null && !ui.fresh ? apply(ui.pending, cur, ui.op) : cur;
   const pct = clamp((logged + Math.max(preview, 0)) / g, 0, 1);
@@ -432,7 +567,7 @@ function renderCalc() {
   placeCap(capEl, cap);
   $('calc-arc-tail').style.display = on ? 'block' : 'none';
 
-  const entries = todayEntries().slice(-16);
+  const entries = viewEntries().slice(-16);
 
   // stripe marks: the leading triangle is static markup, one parallelogram per entry
   const marks = $('calc-marks');
@@ -712,10 +847,21 @@ function renderMeals() {
 function render() {
   if (ui.screen === 'home') renderHome();
   else if (ui.screen === 'calc') renderCalc();
+  else if (ui.screen === 'calendar') renderCalendar();
   else renderStats();
 }
 
 // ── wiring ───────────────────────────────────────────────────────────────────
+$('home-day-btn').addEventListener('click', () => { ui.picker = true; render(); });
+$('home-picker-backdrop').addEventListener('click', () => { ui.picker = false; render(); });
+$('home-cal-btn').addEventListener('click', () => {
+  ui.calMonth = monthStart(dayAt(ui.day));
+  go('calendar');
+});
+$('cal-back-btn').addEventListener('click', () => go('home'));
+$('cal-prev').addEventListener('click', () => shiftMonth(-1));
+$('cal-next').addEventListener('click', () => shiftMonth(1));
+
 $('home-stats-btn').addEventListener('click', () => go('stats'));
 $('home-open-calc').addEventListener('click', () => go('calc'));
 $('stats-home-btn').addEventListener('click', () => go('home'));
