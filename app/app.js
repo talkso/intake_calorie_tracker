@@ -36,7 +36,7 @@ const HOME_ARC_ANCHOR = 48.2;
 // edge lands on the centre x, rather than the cap straddling 6 o'clock.
 const CALC_ARC_ANCHOR = 180 - CAP_HALF;
 const CALC_RING_C = { x: 203.5, y: 356.5 };  // ring centre in screen coords on calculator
-const SNAP_MARGIN = 2;                       // degrees of slack around the readout
+const SNAP_MARGIN = 5;   // degrees of clearance around type on the band
 
 const SEG_MAP = {
   '0': 'abcdef', '1': 'bc', '2': 'abdeg', '3': 'abcdg', '4': 'bcfg',
@@ -173,31 +173,44 @@ function capMask(pt) {
          pt.y.toFixed(2) + 'px,#000 99%,rgba(0,0,0,0) 100%)';
 }
 
+/** Box of an element in screen coordinates, walking up to the screen root. */
+function screenBox(el) {
+  let x = 0, y = 0, n = el;
+  const stop = $('screen-calc');
+  while (n && n !== stop) { x += n.offsetLeft; y += n.offsetTop; n = n.offsetParent; }
+  return [x, y, x + el.offsetWidth, y + el.offsetHeight];
+}
+
 /**
- * Sweep at which the percentage readout first gets touched by the arc, and the sweep at
- * which it is fully buried. Worked per corner, because the leading cap is a circle: how
- * far past the wedge edge it reaches depends on the radius the corner sits at (~22.3deg
- * at the band centre, ~18.5deg out at the readout's top corners).
+ * One forbidden sweep interval per piece of type on the band: between these the arc edge
+ * would cut through it. Kept separate rather than unioned, because the readout and the
+ * CALC label sit at different angles and one merged interval would forbid a needlessly
+ * wide band. SNAP_MARGIN is the clearance either side, so the edge never merely grazes.
+ *
+ * Solved per corner, because the leading cap is a circle: how far past the wedge edge it
+ * reaches depends on the radius the corner sits at (~22.3deg at the band centre, but only
+ * ~18.5deg out at the readout's top corners).
  */
-function pctCoverWindow() {
-  const host = $('calc-pct'), ink = $('calc-pct-ink');
-  const x0 = host.offsetLeft + ink.offsetLeft, y0 = host.offsetTop + ink.offsetTop;
-  const x1 = x0 + ink.offsetWidth, y1 = y0 + ink.offsetHeight;
-  let enter = Infinity, exit = -Infinity;
-  for (const x of [x0, x1]) {
-    for (const y of [y0, y1]) {
-      const dx = x - CALC_RING_C.x, dy = CALC_RING_C.y - y;
-      const r = Math.hypot(dx, dy) || 1;
-      const theta = Math.atan2(dx, dy) * 180 / Math.PI;
-      const cosd = clamp((r * r + BAND_R * BAND_R - CAP_R * CAP_R) / (2 * r * BAND_R), -1, 1);
-      const s = CALC_ARC_ANCHOR - theta - Math.acos(cosd) * 180 / Math.PI;
-      enter = Math.min(enter, s);
-      exit = Math.max(exit, s);
+function coverIntervals() {
+  return [
+    { box: $('calc-pct-ink'), paint: $('calc-pct') },
+    { box: $('calc-title'), paint: $('calc-title') }
+  ].map(t => {
+    const [x0, y0, x1, y1] = screenBox(t.box);
+    let enter = Infinity, exit = -Infinity;
+    for (const x of [x0, x1]) {
+      for (const y of [y0, y1]) {
+        const dx = x - CALC_RING_C.x, dy = CALC_RING_C.y - y;
+        const r = Math.hypot(dx, dy) || 1;
+        const theta = Math.atan2(dx, dy) * 180 / Math.PI;
+        const cosd = clamp((r * r + BAND_R * BAND_R - CAP_R * CAP_R) / (2 * r * BAND_R), -1, 1);
+        const s = CALC_ARC_ANCHOR - theta - Math.acos(cosd) * 180 / Math.PI;
+        enter = Math.min(enter, s);
+        exit = Math.max(exit, s);
+      }
     }
-  }
-  // Slack so device-pixel rounding and glyph ink spilling past its box cannot leave a
-  // sliver of the number on the wrong ground.
-  return { enter: enter - SNAP_MARGIN, exit: exit + SNAP_MARGIN };
+    return { paint: t.paint, enter: enter - SNAP_MARGIN, exit: exit + SNAP_MARGIN };
+  });
 }
 
 function placeCap(el, pt) {
@@ -379,17 +392,29 @@ function renderCalc() {
   $('calc-pct-ink').textContent = Math.round(pct * 100) + '%';
   renderSegments(ui.display);
 
-  // Keep the arc's leading edge out of the percentage's glyph box. Half-covered, the
-  // number has no single readable colour; snapped past it, one flat colour always works.
-  // The window this skips is ~8% of the range.
+  // Keep the arc's leading edge out of the type on the band. Half-covered, a word has no
+  // single readable colour; snapped clear of it, one flat colour always works.
   let sweep = pct * 360;
-  const { enter, exit } = pctCoverWindow();
-  if (sweep > enter && sweep < exit) {
-    sweep = sweep - enter < exit - sweep ? enter : exit;
+  const intervals = coverIntervals();
+  const merged = intervals
+    .map(i => [i.enter, i.exit])
+    .sort((a, b) => a[0] - b[0])
+    .reduce((acc, cur) => {
+      const last = acc[acc.length - 1];
+      if (last && cur[0] <= last[1]) last[1] = Math.max(last[1], cur[1]);
+      else acc.push(cur.slice());
+      return acc;
+    }, []);
+  for (const [lo, hi] of merged) {
+    if (sweep > lo && sweep < hi) {
+      sweep = sweep - lo < hi - sweep ? lo : hi;
+      break;
+    }
   }
-  const onRed = sweep >= exit;
-  $('calc-pct').style.color = onRed ? '#270E0E' : '#FF0000';
-  $('calc-title').style.color = onRed ? '#270E0E' : '#FF0000';
+  // Each piece of type takes its colour from what ends up behind it, independently.
+  for (const i of intervals) {
+    i.paint.style.color = sweep >= i.exit ? '#270E0E' : '#FF0000';
+  }
 
   const lead = CALC_ARC_ANCHOR - sweep;
   const on = pct > 0;
