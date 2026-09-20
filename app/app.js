@@ -89,7 +89,8 @@ const ui = {
   calMonth: null,            // first of the month the calendar is showing
   display: '0', pending: null, op: null, fresh: true,
   view: 'calc', selTile: null,
-  range: '7D', sel: null, mealSel: null,
+  range: '7D',
+  selDay: null, mealSelDay: null,   // selection keyed by day, so a slide cannot shift it
   scrub: 0                   // days the stats window is dragged back from its rest position
 };
 
@@ -286,7 +287,10 @@ function go(screen) {
   }
   if (screen !== 'home') ui.picker = false;
   // Stats always opens where it rests: a scrub is a way of looking around, not a place.
-  if (screen === 'stats') { ui.scrub = 0; ui.sel = null; ui.mealSel = null; }
+  if (screen === 'stats') {
+    cancelAnimationFrame(glide);
+    ui.scrub = 0; ui.selDay = null; ui.mealSelDay = null;
+  }
   ui.screen = screen;
   for (const s of ['home', 'calc', 'stats', 'calendar']) {
     $('screen-' + s).classList.toggle('active', s === screen);
@@ -646,10 +650,28 @@ const TODAY_AT = 4.5 / 7;    // where Friday's slot centres in a row of seven
 // the share of slots instead would drift, because today's own slot counts on the left.
 const futureSlots = cfg => Math.max(1, Math.round(cfg.n * (1 - TODAY_AT) - 0.5));
 
-/** Day index of the window's most recent slot. Negative days are in the future. */
-function windowEnd() {
+// ui.scrub is a real number of days and slides freely. Only the tracks' transform reads
+// it continuously; every slot is still built on a whole day, so the pixels move with the
+// finger while the data underneath stays on its grid. Slots either side of the visible
+// run are built too, which is what the drag slides into, and what gets clipped.
+const OVERSCAN = 6;
+
+/** Slot width and centre-to-centre pitch for a track of n slots across the 354px chart. */
+function pitchOf(n, gap) {
+  const w = (354 - (n - 1) * gap) / n;
+  return { w: w, pitch: w + gap };
+}
+
+/** The whole-slot position the DOM is built at; the remainder becomes the transform. */
+function scrubBase() {
   const cfg = STATS_RANGES[ui.range];
-  return ui.scrub - futureSlots(cfg) * cfg.step;
+  return Math.round(ui.scrub / cfg.step) * cfg.step;
+}
+
+/** Day index of the window's most recent slot. Negative days are in the future. */
+function windowEnd(base) {
+  const cfg = STATS_RANGES[ui.range];
+  return (base == null ? scrubBase() : base) - futureSlots(cfg) * cfg.step;
 }
 
 /** How far the window may be dragged: back to the oldest entry, forward only a little. */
@@ -664,31 +686,34 @@ function scrubBounds() {
   };
 }
 
+function bucketAt(d, step) {
+  let sum = 0;
+  for (let k = 0; k < step; k++) sum += dayCal(d + k);
+  return { d: d, v: Math.round(sum / step) };
+}
+
+/** The visible run only - overscan is for the drag to slide into, not to average in. */
 function buckets(range) {
   const cfg = STATS_RANGES[range];
   const end = windowEnd();
   const out = [];
-  for (let i = 0; i < cfg.n; i++) {
-    const d = end + (cfg.n - 1 - i) * cfg.step;
-    let sum = 0;
-    for (let k = 0; k < cfg.step; k++) sum += dayCal(d + k);
-    out.push({ d: d, v: Math.round(sum / cfg.step) });
-  }
+  for (let i = 0; i < cfg.n; i++) out.push(bucketAt(end + (cfg.n - 1 - i) * cfg.step, cfg.step));
   return out;
 }
 
-function mealIdxForDay(d) {
-  const c = MEALS_CFG[ui.range];
-  const i = c.n - 1 - Math.floor((d - windowEnd()) / c.step);
-  return i >= 0 && i < c.n ? i : null;
+/** Start of the bucket of the given width that the day falls in. */
+function bucketStart(d, step) {
+  const end = windowEnd();
+  return end + Math.floor((d - end) / step) * step;
 }
 
-function barIdxForDay(d) {
-  const c = STATS_RANGES[ui.range];
-  const m = MEALS_CFG[ui.range];
-  if (m.step > c.step * 2) return null;
-  const i = c.n - 1 - Math.floor((d - windowEnd()) / c.step);
-  return i >= 0 && i < c.n ? i : null;
+/**
+ * Dates every so many days rather than at the ends of the track: a tick tied to a day
+ * survives the slide, where a label pinned to the left edge would just sit there while
+ * the chart moved underneath it.
+ */
+function tickEvery(cfg) {
+  return cfg.step * Math.max(1, Math.round(cfg.n / 6));
 }
 
 /** Representative meal times for a bucket: slot r averaged over the days that have one. */
@@ -708,157 +733,157 @@ function bucketTimes(d, step) {
   return out;
 }
 
+/**
+ * Empties a host and gives it a track wide enough to hold the overscan on both sides,
+ * hung far enough left that slot OVERSCAN lands where slot 0 used to. Everything the
+ * drag moves lives on one of these, so sliding is one transform per track.
+ */
+function makeTrack(host, geom, extra) {
+  clear(host);
+  const total = host.dataset.slots;
+  const track = el('div',
+    'position:absolute;top:0;bottom:0;left:' + (-OVERSCAN * geom.pitch).toFixed(3) +
+    'px;width:' + (total * geom.pitch).toFixed(3) + 'px;will-change:transform;' + (extra || ''));
+  host.appendChild(track);
+  return track;
+}
+
 function renderStats() {
   const g = goal();
   const range = ui.range;
   const cfg = STATS_RANGES[range];
-  const cur = buckets(range);
-  const n = cur.length;
+  const base = scrubBase();
+  const end = windowEnd(base);
+  const geom = pitchOf(cfg.n, cfg.gap);
+  const total = cfg.n + 2 * OVERSCAN;
   const barScale = g / GOAL_AT;
-  const sel = ui.sel;
-  const selBar = sel != null ? cur[sel] : null;
-  // Slots ahead of today hold nothing by definition; averaging them in would just
-  // scale the figure down by the width of the headroom.
-  const real = cur.filter(b => b.d >= 0);
-  const curAvg = real.length
-    ? Math.round(real.reduce((a, b) => a + b.v, 0) / real.length) : 0;
+  const tick = tickEvery(cfg);
+  domBase = base;
 
-  $('stats-hero-caption').textContent = selBar
-    ? (cfg.step === 1
-        ? dayAt(selBar.d).toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase() +
-          ' ' + dayAt(selBar.d).getDate() + ' ' + mon(selBar.d).toUpperCase()
-        : 'WEEK OF ' + dayAt(selBar.d).getDate() + ' ' + mon(selBar.d).toUpperCase())
-    : 'AVERAGE PER ' + range.replace('D', ' DAYS').replace('1Y', 'YEAR');
-  $('stats-hero-value').textContent = nf(selBar ? selBar.v : curAvg);
+  updateHero();
   $('stats-goal-value').textContent = nf(g);
   $('stats-goal-line').style.bottom = (GOAL_AT * 100).toFixed(2) + '%';
   $('stats-range-btn').textContent = range;
 
-  // bars
   const barHost = $('stats-bars');
-  clear(barHost);
-  barHost.style.gap = cfg.gap + 'px';
-  cur.forEach((b, i) => {
+  barHost.dataset.slots = total;
+  const barTrack = makeTrack(barHost, geom,
+    'display:flex;align-items:flex-end;gap:' + cfg.gap + 'px');
+
+  const xHost = $('stats-xlabels');
+  xHost.dataset.slots = total;
+  const xTrack = makeTrack(xHost, geom);
+  const labelStyle = "position:absolute;top:0;white-space:nowrap;font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#4A5046";
+
+  for (let j = 0; j < total; j++) {
+    const b = bucketAt(end + (cfg.n - 1 + OVERSCAN - j) * cfg.step, cfg.step);
     const ahead = b.d < 0;
+    const on = ui.selDay != null && b.d === ui.selDay;
     const slot = el('div',
-      'flex:1 1 0;min-width:0;height:100%;display:flex;align-items:flex-end;justify-content:center' +
-      (ahead ? '' : ';cursor:pointer'));
-    const fill = sel == null
+      'width:' + geom.w.toFixed(3) + 'px;flex:none;height:100%;display:flex;' +
+      'align-items:flex-end;justify-content:center' + (ahead ? '' : ';cursor:pointer'));
+    slot.dataset.day = b.d;
+    const fill = ui.selDay == null
       ? (b.v > g ? '#FF0000' : '#270E0E')
-      : (sel === i ? '#FF0000' : '#A9AE99');
+      : (on ? '#FF0000' : '#A9AE99');
     slot.appendChild(el('div',
       'width:' + cfg.w + ';max-width:100%;height:' +
       Math.min(100, (b.v / barScale) * 100).toFixed(2) + '%;background:' + fill +
       ';border-radius:' + cfg.cap));
     if (!ahead) {
       slot.addEventListener('click', () => {
-        if (ui.sel === i) { ui.sel = null; ui.mealSel = null; }
-        else { ui.sel = i; ui.mealSel = mealIdxForDay(b.d); }
+        const off = ui.selDay === b.d;
+        ui.selDay = off ? null : b.d;
+        ui.mealSelDay = off ? null : bucketStart(b.d, MEALS_CFG[ui.range].step);
         render();
       });
     }
-    barHost.appendChild(slot);
-  });
+    barTrack.appendChild(slot);
 
-  // x axis
-  const xHost = $('stats-xlabels');
-  clear(xHost);
-  const labelStyle = "position:absolute;top:0;white-space:nowrap;font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#4A5046";
-  if (range === '7D') {
-    cur.forEach((b, i) => {
-      xHost.appendChild(el('div',
-        labelStyle + ';left:' + colPos(i, n, cfg.gap) + ';transform:translateX(-50%)',
-        b.d === 0 ? 'today' : dayAt(b.d).toLocaleDateString('en-US', { weekday: 'narrow' })));
-    });
-  } else {
-    endLabels(xHost, labelStyle, cur, cfg.gap);
+    const text = range === '7D'
+      ? (b.d === 0 ? 'today' : dayAt(b.d).toLocaleDateString('en-US', { weekday: 'narrow' }))
+      : (b.d === 0 ? 'today'
+        : b.d % tick === 0 ? dayAt(b.d).getDate() + ' ' + mon(b.d) : '');
+    if (text) {
+      xTrack.appendChild(el('div',
+        labelStyle + ';left:' + (j * geom.pitch + geom.w / 2).toFixed(2) +
+        'px;transform:translateX(-50%)', text));
+    }
   }
 
   renderMeals();
+  applyScrub();
 }
 
-/**
- * Dates at the ends of a dense track, plus "today" wherever it now falls. The midpoint
- * label is dropped when today would land on top of it, since today is the one that says
- * where in time you are.
- */
-function endLabels(host, style, cols, gap) {
-  const n = cols.length;
-  const todayI = cols.findIndex(c => c.d === 0);
-  const at = i => (i + 0.5) / n;
-  const date = c => dayAt(c.d).getDate() + ' ' + mon(c.d);
+/** The one piece of the screen that reads the window rather than a single day. */
+function updateHero() {
+  const cfg = STATS_RANGES[ui.range];
+  const cur = buckets(ui.range);
+  // Slots ahead of today hold nothing by definition; averaging them in would just
+  // scale the figure down by the width of the headroom.
+  const real = cur.filter(b => b.d >= 0);
+  const avg = real.length
+    ? Math.round(real.reduce((a, b) => a + b.v, 0) / real.length) : 0;
+  const selBar = ui.selDay != null ? bucketAt(ui.selDay, cfg.step) : null;
 
-  host.appendChild(el('div', style + ';left:0%', date(cols[0])));
-  host.appendChild(el('div', style + ';left:100%;transform:translateX(-100%)',
-    date(cols[n - 1])));
-  if (todayI >= 0) {
-    host.appendChild(el('div',
-      style + ';left:' + colPos(todayI, n, gap) + ';transform:translateX(-50%)', 'today'));
-  }
-  const mid = Math.floor(n / 2);
-  if (todayI < 0 || Math.abs(at(mid) - at(todayI)) > 0.2) {
-    host.appendChild(el('div', style + ';left:50%;transform:translateX(-50%)', date(cols[mid])));
-  }
-}
-
-function colPos(i, n, gap) {
-  return 'calc((100% - ' + ((n - 1) * gap) + 'px) * ' + ((i + 0.5) / n).toFixed(5) +
-         ' + ' + (i * gap) + 'px)';
+  $('stats-hero-caption').textContent = selBar
+    ? (cfg.step === 1
+        ? dayAt(selBar.d).toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase() +
+          ' ' + dayAt(selBar.d).getDate() + ' ' + mon(selBar.d).toUpperCase()
+        : 'WEEK OF ' + dayAt(selBar.d).getDate() + ' ' + mon(selBar.d).toUpperCase())
+    : 'AVERAGE PER ' + ui.range.replace('D', ' DAYS').replace('1Y', 'YEAR');
+  $('stats-hero-value').textContent = nf(selBar ? selBar.v : avg);
 }
 
 function renderMeals() {
   const range = ui.range;
   const cfg = MEALS_CFG[range];
-  const sel = ui.mealSel;
+  const bcfg = STATS_RANGES[range];
   const n = cfg.n;
-
-  const cols = [];
+  const total = n + 2 * OVERSCAN;
+  const geom = pitchOf(n, cfg.cg);
   const end = windowEnd();
-  for (let i = 0; i < n; i++) {
-    const d = end + (n - 1 - i) * cfg.step;
-    let sum = 0;
-    for (let k = 0; k < cfg.step; k++) sum += mealsAt(d + k);
-    cols.push({ d: d, v: Math.min(ROWS, Math.round(sum / cfg.step)) });
-  }
-  const times = cols.map(c => bucketTimes(c.d, cfg.step));
-  const selCol = sel != null ? cols[sel] : null;
-  const dimmed = sel != null;
+  const tick = tickEvery(cfg);
+  const dimmed = ui.mealSelDay != null;
   // 7D prints the times inside its larger dots; denser ranges use the detail panel.
   const inDots = cfg.step === 1 && cfg.dot >= 20;
+  let selCol = null, selTimes = null;
 
-  // top labels
   const labelHost = $('stats-meal-labels');
-  clear(labelHost);
+  labelHost.dataset.slots = total;
+  const labelTrack = makeTrack(labelHost, geom);
   const ls = "position:absolute;top:0;white-space:nowrap;font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;opacity:.7";
-  if (range === '7D' || range === '1Y') {
-    cols.forEach((c, i) => {
-      labelHost.appendChild(el('div',
-        ls + ';left:' + colPos(i, n, cfg.cg) + ';transform:translateX(-50%)', String(c.v)));
-    });
-  } else {
-    endLabels(labelHost, ls, cols, cfg.cg);
-  }
 
-  // dot matrix
   const colHost = $('stats-meal-cols');
-  clear(colHost);
-  colHost.style.gap = cfg.cg + 'px';
-  cols.forEach((c, i) => {
-    const on = sel === i;
+  colHost.dataset.slots = total;
+  const colTrack = makeTrack(colHost, geom,
+    'display:flex;align-items:flex-start;gap:' + cfg.cg + 'px');
+
+  for (let j = 0; j < total; j++) {
+    const d = end + (n - 1 + OVERSCAN - j) * cfg.step;
+    let sum = 0;
+    for (let k = 0; k < cfg.step; k++) sum += mealsAt(d + k);
+    const c = { d: d, v: Math.min(ROWS, Math.round(sum / cfg.step)) };
+    const times = bucketTimes(c.d, cfg.step);
+    const on = ui.mealSelDay != null && c.d === ui.mealSelDay;
+    if (on) { selCol = c; selTimes = times; }
+
     const fill = on ? '#000000' : dimmed ? 'rgba(39,14,14,.34)' : '#270E0E';
     const off = on ? 'rgba(0,0,0,.2)' : dimmed ? 'rgba(39,14,14,.12)' : 'rgba(39,14,14,.22)';
     // A column whose every day is still ahead of today can never hold a meal, so it
     // does not answer to a tap. Columns that straddle today still do.
     const ahead = c.d + cfg.step - 1 < 0;
     const col = el('div',
-      'position:relative;flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:' +
-      cfg.dg + 'px;padding-bottom:26px' + (ahead ? '' : ';cursor:pointer'));
+      'position:relative;width:' + geom.w.toFixed(3) + 'px;flex:none;display:flex;' +
+      'flex-direction:column;align-items:center;gap:' + cfg.dg +
+      'px;padding-bottom:26px' + (ahead ? '' : ';cursor:pointer'));
+    col.dataset.day = c.d;
     for (let r = 0; r < ROWS; r++) {
       const lit = r < c.v;
       const dot = el('div',
         'position:relative;width:' + cfg.dot + 'px;height:' + cfg.dot +
         'px;border-radius:50%;background:' + (lit ? fill : off) + ';flex:none');
-      const label = on && lit && inDots && times[i][r] != null ? hhmm(times[i][r]) : '';
+      const label = on && lit && inDots && times[r] != null ? hhmm(times[r]) : '';
       dot.appendChild(el('div',
         "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;white-space:nowrap;font:600 10.5px/1 'IBM Plex Mono',monospace;letter-spacing:0;color:" +
         (label ? '#FF0000' : 'transparent'), label));
@@ -866,13 +891,25 @@ function renderMeals() {
     }
     if (!ahead) {
       col.addEventListener('click', () => {
-        if (ui.mealSel === i) { ui.mealSel = null; ui.sel = null; }
-        else { ui.mealSel = i; ui.sel = barIdxForDay(c.d); }
+        const drop = ui.mealSelDay === c.d;
+        ui.mealSelDay = drop ? null : c.d;
+        ui.selDay = drop || cfg.step > bcfg.step * 2
+          ? null : bucketStart(c.d, bcfg.step);
         render();
       });
     }
-    colHost.appendChild(col);
-  });
+    colTrack.appendChild(col);
+
+    const text = range === '7D' || range === '1Y'
+      ? String(c.v)
+      : (c.d === 0 ? 'today'
+        : c.d % tick === 0 ? dayAt(c.d).getDate() + ' ' + mon(c.d) : '');
+    if (text) {
+      labelTrack.appendChild(el('div',
+        ls + ';left:' + (j * geom.pitch + geom.w / 2).toFixed(2) +
+        'px;transform:translateX(-50%)', text));
+    }
+  }
 
   // selected-day detail panel (30D and denser)
   const panel = $('stats-sel-times');
@@ -883,7 +920,7 @@ function renderMeals() {
     $('stats-sel-caption').textContent = selCol.v + (selCol.v === 1 ? ' MEAL' : ' MEALS');
     const list = $('stats-sel-list');
     clear(list);
-    times[sel].forEach((h, r) => {
+    selTimes.forEach((h, r) => {
       const item = el('div', 'display:flex;flex-direction:column;gap:4px;color:#FF0000');
       item.appendChild(el('div',
         "font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;color:#FF6A58",
@@ -894,11 +931,14 @@ function renderMeals() {
     });
   }
 
-  // average meal times hero
+  // Average meal times over the visible run. The overscan columns are built for the
+  // drag to slide into and are off screen, so they do not get a say.
+  const seen = [];
+  for (let i = 0; i < n; i++) seen.push(bucketTimes(end + i * cfg.step, cfg.step));
   const avgTimes = [];
   for (let r = 0; r < ROWS; r++) {
-    const vals = times.map(t => t[r]).filter(v => v != null);
-    if (vals.length >= Math.max(2, cols.length * 0.5)) {
+    const vals = seen.map(t => t[r]).filter(v => v != null);
+    if (vals.length >= Math.max(2, n * 0.5)) {
       avgTimes.push(hhmm(vals.reduce((a, b) => a + b, 0) / vals.length));
     }
   }
@@ -950,9 +990,9 @@ $('calc-keypad').addEventListener('click', e => {
 
 $('stats-range-btn').addEventListener('click', () => {
   ui.range = RANGES[(RANGES.indexOf(ui.range) + 1) % RANGES.length];
-  ui.sel = null;
-  ui.mealSel = null;
-  ui.scrub = 0;              // slots change width, so a slot offset would not carry over
+  ui.selDay = null;
+  ui.mealSelDay = null;
+  ui.scrub = 0;              // slots change width, so an offset would not carry over
   render();
 });
 
@@ -961,13 +1001,52 @@ $('stats-range-btn').addEventListener('click', () => {
 // time, and a drag that ends on a bar must not also select it.
 const SCRUB_ZONE = '#stats-chart,#stats-xlabels,#stats-meal-labels,#stats-meal-cols';
 const statsScreen = $('screen-stats');
+let domBase = 0;             // the whole-slot position the tracks were last built at
 let scrubFrom = null;
 let scrubMoved = false;
+let glide = 0;               // rAF handle for the throw after a release
+
+/**
+ * Moves the four tracks to wherever ui.scrub has got to. No layout and no paint: each
+ * track is one composited transform. The DOM is only rebuilt when the drag has eaten
+ * far enough into the overscan that it would otherwise run out of slots.
+ */
+function applyScrub() {
+  const cfg = STATS_RANGES[ui.range];
+  const mcfg = MEALS_CFG[ui.range];
+  const delta = ui.scrub - domBase;
+  if (Math.abs(delta) >= (OVERSCAN - 1) * cfg.step) { render(); return; }
+
+  const px = (delta / cfg.step) * pitchOf(cfg.n, cfg.gap).pitch;
+  const mpx = (delta / mcfg.step) * pitchOf(mcfg.n, mcfg.cg).pitch;
+  shiftTrack('stats-bars', px);
+  shiftTrack('stats-xlabels', px);
+  shiftTrack('stats-meal-cols', mpx);
+  shiftTrack('stats-meal-labels', mpx);
+}
+
+function shiftTrack(id, px) {
+  const track = $(id).firstChild;
+  if (track) track.style.transform = 'translateX(' + px.toFixed(2) + 'px)';
+}
+
+/** Slides to a position, redrawing the hero only when a whole slot has gone by. */
+function scrubTo(v) {
+  const b = scrubBounds();
+  const next = clamp(v, b.min, b.max);
+  if (next === ui.scrub) return next === v;
+  const was = scrubBase();
+  ui.scrub = next;
+  applyScrub();
+  if (scrubBase() !== was) updateHero();
+  return next === v;
+}
 
 statsScreen.addEventListener('pointerdown', e => {
+  cancelAnimationFrame(glide);
   scrubMoved = false;
   if (!e.target.closest(SCRUB_ZONE)) return;
-  scrubFrom = { x: e.clientX, scrub: ui.scrub };
+  scrubFrom = { x: e.clientX, scrub: ui.scrub, t: e.timeStamp, v: 0 };
 });
 
 statsScreen.addEventListener('pointermove', e => {
@@ -977,27 +1056,43 @@ statsScreen.addEventListener('pointermove', e => {
   if (!scrubMoved) {
     if (Math.abs(dx) < 4) return;
     scrubMoved = true;
+    ui.selDay = null;
+    ui.mealSelDay = null;
+    render();
     // Captured only once the gesture is unmistakably a drag. Capturing on the press
     // instead would retarget the click a plain tap ends with onto this element, and
     // the bar under the finger would never hear about it.
     try { statsScreen.setPointerCapture(e.pointerId); } catch (_) { /* gone already */ }
   }
-  const b = scrubBounds();
-  const slotPx = 354 / cfg.n;            // the chart spans the canvas less its 24px margins
-  const next = clamp(scrubFrom.scrub + Math.round(dx / slotPx) * cfg.step, b.min, b.max);
-  if (next === ui.scrub) return;
-  ui.scrub = next;
-  ui.sel = null;
-  ui.mealSel = null;
-  render();
+  const days = (dx / pitchOf(cfg.n, cfg.gap).pitch) * cfg.step;
+  const before = ui.scrub;
+  scrubTo(scrubFrom.scrub + days);
+  const dt = e.timeStamp - scrubFrom.t;
+  if (dt > 0) scrubFrom.v = (ui.scrub - before) / dt;   // days per ms, for the throw
+  scrubFrom.t = e.timeStamp;
 });
+
+/** Carries the window on after the finger lifts, shedding speed until it settles. */
+function throwScrub(v) {
+  let last = performance.now();
+  const tick = now => {
+    const dt = Math.min(34, now - last);
+    last = now;
+    const room = scrubTo(ui.scrub + v * dt);
+    v *= Math.pow(0.9975, dt);
+    if (room && Math.abs(v) > 0.0004) glide = requestAnimationFrame(tick);
+  };
+  glide = requestAnimationFrame(tick);
+}
 
 function scrubEnd(e) {
   if (!scrubFrom) return;
+  const v = scrubFrom.v;
+  const dragged = scrubMoved;
   scrubFrom = null;
-  if (scrubMoved) {
-    try { statsScreen.releasePointerCapture(e.pointerId); } catch (_) { /* already gone */ }
-  }
+  if (!dragged) return;
+  try { statsScreen.releasePointerCapture(e.pointerId); } catch (_) { /* already gone */ }
+  if (Math.abs(v) > 0.002) throwScrub(v);
 }
 statsScreen.addEventListener('pointerup', scrubEnd);
 statsScreen.addEventListener('pointercancel', scrubEnd);

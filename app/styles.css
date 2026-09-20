@@ -89,6 +89,14 @@ body {
   -webkit-user-select: none;
 }
 
+/* Each of these holds one wide track that slides under it. Whatever hangs past the
+   edge is simply cut - a bar or a date sliced down the middle is the point, not a
+   defect, and it is what lets the drag be continuous instead of slot by slot.
+
+   Sideways only: the meal columns are taller than their host by design and spill
+   below it, and `overflow: hidden` has no way to say one axis without the other. */
+.track { clip-path: inset(-400px 0 -400px 0); }
+
 .cal-cell { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .cal-cell:active { transform: scale(.92); }
 
