@@ -172,20 +172,29 @@ function capMask(pt) {
          pt.y.toFixed(2) + 'px,#000 99%,rgba(0,0,0,0) 100%)';
 }
 
-/** Angular extent of the percentage readout as seen from the calculator's ring centre. */
-function pctInkAngles() {
+/**
+ * Sweep at which the percentage readout first gets touched by the arc, and the sweep at
+ * which it is fully buried. Worked per corner, because the leading cap is a circle: how
+ * far past the wedge edge it reaches depends on the radius the corner sits at (~22.3deg
+ * at the band centre, ~18.5deg out at the readout's top corners).
+ */
+function pctCoverWindow() {
   const host = $('calc-pct'), ink = $('calc-pct-ink');
   const x0 = host.offsetLeft + ink.offsetLeft, y0 = host.offsetTop + ink.offsetTop;
   const x1 = x0 + ink.offsetWidth, y1 = y0 + ink.offsetHeight;
-  let lo = Infinity, hi = -Infinity;
+  let enter = Infinity, exit = -Infinity;
   for (const x of [x0, x1]) {
     for (const y of [y0, y1]) {
-      const a = Math.atan2(x - CALC_RING_C.x, CALC_RING_C.y - y) * 180 / Math.PI;
-      lo = Math.min(lo, a);
-      hi = Math.max(hi, a);
+      const dx = x - CALC_RING_C.x, dy = CALC_RING_C.y - y;
+      const r = Math.hypot(dx, dy) || 1;
+      const theta = Math.atan2(dx, dy) * 180 / Math.PI;
+      const cosd = clamp((r * r + BAND_R * BAND_R - CAP_R * CAP_R) / (2 * r * BAND_R), -1, 1);
+      const s = CALC_ARC_ANCHOR - theta - Math.acos(cosd) * 180 / Math.PI;
+      enter = Math.min(enter, s);
+      exit = Math.max(exit, s);
     }
   }
-  return { lo, hi };
+  return { enter, exit };
 }
 
 function placeCap(el, pt) {
@@ -371,9 +380,7 @@ function renderCalc() {
   // number has no single readable colour; snapped past it, one flat colour always works.
   // The window this skips is ~8% of the range.
   let sweep = pct * 360;
-  const ink = pctInkAngles();
-  const enter = CALC_ARC_ANCHOR - CAP_HALF - ink.hi;
-  const exit = CALC_ARC_ANCHOR - CAP_HALF - ink.lo;
+  const { enter, exit } = pctCoverWindow();
   if (sweep > enter && sweep < exit) {
     sweep = sweep - enter < exit - sweep ? enter : exit;
   }
@@ -738,6 +745,10 @@ setInterval(() => {
 reindex();
 layout();
 go('home');
+
+// The calculator measures its readout to place the arc. Before the webfont lands that
+// measurement uses fallback metrics, so redo it once the real face is in.
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
