@@ -46,7 +46,7 @@ body {
 /* Prevents a flash of unstyled canvas before the first layout pass sizes the stage. */
 #stage:not(.ready) { visibility: hidden; }
 
-.nav-pill, .home-dot { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.nav-pill { cursor: pointer; user-select: none; -webkit-user-select: none; }
 
 /* ── pseudo-class states carried over from the prototype's style-active/style-hover ── */
 
@@ -58,6 +58,10 @@ body {
 
 .dial-btn:hover { background: rgba(255, 0, 0, .06) !important; }
 .dial-btn:active { background: rgba(255, 0, 0, .14) !important; transform: scale(.985) !important; }
+
+/* Home's disc is red, so it presses dark rather than red. */
+.dial-btn-home:hover { background: rgba(39, 14, 14, .05) !important; }
+.dial-btn-home:active { background: rgba(39, 14, 14, .12) !important; transform: scale(.985) !important; }
 
 .view-toggle:active { color: #FFFFFF !important; }
 

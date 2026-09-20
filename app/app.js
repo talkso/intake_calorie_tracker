@@ -23,13 +23,15 @@ const RANGES = ['7D', '30D', '90D', '1Y'];
 const ROWS = 6;              // meal dots per column
 const GOAL_AT = 0.86;        // goal rule pinned at 86% of chart height in every range
 
-// Home dial: round cap anchored here, fill sweeps clockwise from it.
-const HOME_ARC_FROM = 228;
-// Calculator dial: the prototype's hand-placed end blob is correct at this sweep, so it
-// is rotated about the ring centre by the difference.
-const CALC_ARC_FROM = 340;
-const CALC_ARC_REF = 152;
+// Both dials are pinned at a fixed point on the band and grow counter-clockwise, so the
+// round cap rides the leading edge rather than the tail. At the sweeps the prototype drew
+// (180.2deg home, 152deg calculator) every layer lands on its hand-placed position to
+// within a fifth of a pixel.
+const HOME_ARC_ANCHOR = 48.2;
+const CALC_ARC_ANCHOR = 132;
 const RING_C = 299.5;        // centre of the 599x599 ring box
+const BAND_R = 217.1375;     // centre radius of the ring band
+const CAP_R = 82.35;         // half the band width
 
 const SEG_MAP = {
   '0': 'abcdef', '1': 'bc', '2': 'abdeg', '3': 'abcdg', '4': 'bcfg',
@@ -191,6 +193,11 @@ function paintBackdrop() {
 
 // ── routing ──────────────────────────────────────────────────────────────────
 function go(screen) {
+  // The calculator always opens on the keypad, never on whatever view was left behind.
+  if (screen === 'calc') {
+    ui.view = 'calc';
+    ui.selTile = null;
+  }
   ui.screen = screen;
   for (const s of ['home', 'calc', 'stats']) {
     $('screen-' + s).classList.toggle('active', s === screen);
@@ -211,19 +218,28 @@ function renderHome() {
   $('home-day').textContent =
     new Date().toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() + '.';
 
-  const mask = conicMask(HOME_ARC_FROM, sweep);
+  const lead = HOME_ARC_ANCHOR - sweep;
+  const on = pct > 0;
+  const mask = conicMask(lead, sweep);
+  const cap = bandPoint(lead, BAND_R);
+
   const fill = $('home-arc-fill');
+  fill.style.display = on ? 'block' : 'none';
   fill.style.webkitMask = mask;
   fill.style.mask = mask;
 
-  const cap = bandPoint(HOME_ARC_FROM, 217.1375);
-  const capMask = 'radial-gradient(circle 82.35px at ' + cap.x.toFixed(2) + 'px ' +
+  const capEl = $('home-arc-cap');
+  capEl.style.display = on ? 'block' : 'none';
+  capEl.style.left = (cap.x - CAP_R).toFixed(2) + 'px';
+  capEl.style.top = (cap.y - CAP_R).toFixed(2) + 'px';
+
+  // The bright tick row is clipped to the filled wedge plus its cap.
+  const capMask = 'radial-gradient(circle ' + CAP_R + 'px at ' + cap.x.toFixed(2) + 'px ' +
                   cap.y.toFixed(2) + 'px,#000 99%,rgba(0,0,0,0) 100%)';
   const clip = $('home-tick-clip');
+  clip.style.display = on ? 'block' : 'none';
   clip.style.webkitMaskImage = mask + ',' + capMask;
   clip.style.maskImage = mask + ',' + capMask;
-
-  $('home-arc-cap').style.display = pct > 0 ? 'block' : 'none';
 }
 
 // ══════════════════════════ CALCULATOR ══════════════════════════
@@ -257,6 +273,7 @@ function setOp(op) {
   render();
 }
 
+/** Returns true only when an entry was actually logged (not when an expression resolved). */
 function equals() {
   if (ui.op != null) {
     const cur = parseFloat(ui.display) || 0;
@@ -264,14 +281,16 @@ function equals() {
     ui.pending = null;
     ui.op = null;
     ui.fresh = true;
-    return render();
+    render();
+    return false;
   }
   const val = Math.round(parseFloat(ui.display) || 0);
-  if (!val) return;
+  if (!val) return false;
   logEntry(val);
   ui.display = '0';
   ui.fresh = true;
   render();
+  return true;
 }
 
 function del() {
@@ -317,18 +336,23 @@ function renderCalc() {
   $('calc-pct').textContent = Math.round(pct * 100) + '%';
   renderSegments(ui.display);
 
-  const mask = conicMask(CALC_ARC_FROM, sweep);
+  const lead = CALC_ARC_ANCHOR - sweep;
+  const on = pct > 0;
+  const mask = conicMask(lead, sweep);
+  const cap = bandPoint(lead, BAND_R);
+
   const fill = $('calc-arc-fill');
+  fill.style.display = on ? 'block' : 'none';
   fill.style.webkitMask = mask;
   fill.style.mask = mask;
 
-  const rot = $('calc-arc-blob-rot');
-  rot.style.transformOrigin = RING_C + 'px ' + RING_C + 'px';
-  rot.style.transform = 'rotate(' + (sweep - CALC_ARC_REF) + 'deg)';
-
-  const visible = pct > 0 ? 'block' : 'none';
-  $('calc-arc-cap').style.display = visible;
-  $('calc-arc-blob').style.display = visible;
+  // Leading cap rides the sweep; the oversized blob sits at the fixed tail, where the
+  // prototype hand-placed it, so it does not move.
+  const capEl = $('calc-arc-cap');
+  capEl.style.display = on ? 'block' : 'none';
+  capEl.style.left = (cap.x - CAP_R).toFixed(2) + 'px';
+  capEl.style.top = (cap.y - CAP_R).toFixed(2) + 'px';
+  $('calc-arc-blob').style.display = on ? 'block' : 'none';
 
   const entries = todayEntries().slice(-16);
 
@@ -619,7 +643,8 @@ $('home-open-calc').addEventListener('click', () => go('calc'));
 $('stats-home-btn').addEventListener('click', () => go('home'));
 
 $('calc-close').addEventListener('click', () => { clearCalc(); go('home'); });
-$('calc-dial-btn').addEventListener('click', equals);
+// The dial doubles as "log it and get out" — resolving a pending expression keeps you here.
+$('calc-dial-btn').addEventListener('click', () => { if (equals()) go('home'); });
 $('calc-view-toggle').addEventListener('click', () => {
   ui.view = ui.view === 'calc' ? 'history' : 'calc';
   ui.selTile = null;
