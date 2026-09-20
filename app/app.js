@@ -36,6 +36,7 @@ const HOME_ARC_ANCHOR = 48.2;
 // edge lands on the centre x, rather than the cap straddling 6 o'clock.
 const CALC_ARC_ANCHOR = 180 - CAP_HALF;
 const CALC_RING_C = { x: 203.5, y: 356.5 };  // ring centre in screen coords on calculator
+const SNAP_MARGIN = 2;                       // degrees of slack around the readout
 
 const SEG_MAP = {
   '0': 'abcdef', '1': 'bc', '2': 'abdeg', '3': 'abcdg', '4': 'bcfg',
@@ -194,7 +195,9 @@ function pctCoverWindow() {
       exit = Math.max(exit, s);
     }
   }
-  return { enter, exit };
+  // Slack so device-pixel rounding and glyph ink spilling past its box cannot leave a
+  // sliver of the number on the wrong ground.
+  return { enter: enter - SNAP_MARGIN, exit: exit + SNAP_MARGIN };
 }
 
 function placeCap(el, pt) {
