@@ -69,6 +69,21 @@ body {
 
 .tile { cursor: pointer; user-select: none; -webkit-user-select: none; }
 
+/* An armed tile shows its own clock running out: it holds black, then hands the colour
+   back over the last stretch of the window. The state you can see is then always the
+   state a second tap would act on, and the tile returns on its own even if a render is
+   missed. --arm-ms is set from ARM_MS so the two cannot drift apart. */
+@keyframes tile-arm {
+  0%, 78% { background-color: #000000; color: #FF0000; }
+  100%    { background-color: #FF0000; color: #270E0E; }
+}
+
+.tile.armed { animation: tile-arm var(--arm-ms, 2000ms) linear forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tile.armed { animation: none; }
+}
+
 /* ── day picker ── */
 
 .noscrollbar { scrollbar-width: none; -ms-overflow-style: none; }

@@ -607,6 +607,7 @@ function renderCalc() {
 // so what you see is always what a second tap would do.
 const ARM_MS = 2000;
 let armTimer = 0;
+document.documentElement.style.setProperty('--arm-ms', ARM_MS + 'ms');
 
 function armTile(t) {
   clearTimeout(armTimer);
@@ -671,7 +672,7 @@ function renderHistory(entries) {
       'flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden;' +
       'transition:background .1s,color .1s;background:' + (on ? '#000000' : '#FF0000') +
       ';color:' + (on ? '#FF0000' : '#270E0E'));
-    tile.className = 'tile';
+    tile.className = on ? 'tile armed' : 'tile';
     tile.appendChild(el('div',
       "font:800 62px/.82 'Big Shoulders Display',sans-serif;letter-spacing:-.02em", String(e.v)));
     tile.appendChild(el('div',
