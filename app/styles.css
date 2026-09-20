@@ -93,7 +93,7 @@ body {
   padding: 0;
   background: transparent;
   cursor: pointer;
-  color: rgba(39, 14, 14, .42);
+  color: rgba(39, 14, 14, .4);
   font: 900 22px/1 Archivo, sans-serif;
   display: flex;
   align-items: center;
@@ -102,5 +102,3 @@ body {
 }
 .cal-nav:active { color: #270E0E !important; }
 .cal-nav.off { color: rgba(39, 14, 14, .14); pointer-events: none; }
-
-#cal-back-btn:active { opacity: .45 !important; }

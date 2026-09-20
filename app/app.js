@@ -262,8 +262,9 @@ function layout() {
 }
 
 function paintBackdrop() {
-  if (ui.screen === 'home' || ui.screen === 'calendar') backdrop.style.background = '#FF0000';
+  if (ui.screen === 'home') backdrop.style.background = '#FF0000';
   else if (ui.screen === 'calc') backdrop.style.background = '#270E0E';
+  else if (ui.screen === 'calendar') backdrop.style.background = '#C0C3B0';
   else {
     // Stats is two-tone: sage above the red meals panel, which starts at y=500.
     const split = offsetY + 500 * scale;
@@ -368,23 +369,25 @@ function renderPicker() {
 // ══════════════════════════ CALENDAR ══════════════════════════
 function monthStart(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 
+// Shortened only where the full name is long enough to need it.
+const CAL_MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUNE',
+                    'JULY', 'AUG', 'SEPT', 'OCT', 'NOV', 'DEC'];
+
 function renderCalendar() {
   const m = ui.calMonth || (ui.calMonth = monthStart(dayAt(ui.day)));
-  $('cal-month').textContent = m.toLocaleDateString('en-US', { month: 'long' }).toUpperCase();
+  $('cal-month').textContent = CAL_MONTHS[m.getMonth()];
   $('cal-year').textContent = m.getFullYear();
 
   // The masthead reads the selected day, not the month being paged through.
   const sel = dayAt(ui.day);
-  const selCal = dayCal(ui.day);
   $('cal-daynum').textContent = sel.getDate();
   $('cal-downame').textContent = sel.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-  $('cal-daycal').textContent = selCal ? nf(selCal) + ' CAL' : 'NOTHING LOGGED';
 
   const dow = $('cal-dow');
   clear(dow);
   for (const l of ['S', 'M', 'T', 'W', 'T', 'F', 'S']) {
     dow.appendChild(el('div',
-      "text-align:center;color:rgba(39,14,14,.42);font:600 9px/1 'IBM Plex Mono',monospace;" +
+      "text-align:center;color:rgba(39,14,14,.4);font:600 9px/1 'IBM Plex Mono',monospace;" +
       'letter-spacing:.1em', l));
   }
 
@@ -403,13 +406,14 @@ function renderCalendar() {
 
     // A logged day is a solid disc; everything else is the faint ground the
     // reference uses, so the month reads as a pattern before it reads as dates.
+    // The selected day takes the accent, the one red thing on a sage screen.
     const cell = el('div',
       'aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;' +
       "box-sizing:border-box;font:600 12px/1 'IBM Plex Mono',monospace;transition:transform .1s;" +
-      (bucket ? 'background:#270E0E;color:#FF0000;'
-        : future ? 'background:rgba(39,14,14,.06);color:rgba(39,14,14,.22);'
-                 : 'background:rgba(39,14,14,.13);color:rgba(39,14,14,.62);') +
-      (selected ? 'outline:2px solid #270E0E;outline-offset:3px;' : ''), String(n));
+      (selected ? 'background:#FF0000;color:#270E0E;'
+        : bucket ? 'background:#270E0E;color:#C0C3B0;'
+        : future ? 'background:rgba(39,14,14,.07);color:rgba(39,14,14,.24);'
+                 : 'background:rgba(39,14,14,.15);color:rgba(39,14,14,.6);'), String(n));
     if (!future) {
       cell.className = 'cal-cell';
       cell.addEventListener('click', () => { ui.day = back; go('home'); });

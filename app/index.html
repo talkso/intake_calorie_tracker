@@ -75,21 +75,25 @@
 </section>
 
 <!-- ═══════════════════════════ CALENDAR ═══════════════════════════ -->
-<section class="screen" id="screen-calendar" style="position:relative;height:874px;overflow:hidden;background-color:#FF0000">
-  <button type="button" id="cal-back-btn" aria-label="Back" style="position:absolute;left:18px;top:50px;width:40px;height:40px;border:0;padding:0;background:transparent;cursor:pointer;color:#270E0E;font:900 21px/1 Archivo,sans-serif;display:flex;align-items:center;justify-content:center;z-index:9">←</button>
+<section class="screen" id="screen-calendar" style="position:relative;height:874px;overflow:hidden;background:#C0C3B0;font-family:Archivo,sans-serif">
+
+  <div style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
+    <button type="button" id="cal-back-btn" class="btn-close" style="width:29px;height:29px;border-radius:50%;border:0;background:#FF0000;color:#270E0E;font:900 12px/1 Archivo,sans-serif;-webkit-text-stroke:0.9px currentColor;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;flex:none">✕</button>
+    <div style="position:absolute;left:0;right:0;text-align:center;color:#270E0E;font:600 17px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;pointer-events:none">log</div>
+    <div style="width:29px;height:29px;border-radius:50%;border:2.5px solid #FF0000;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#FF0000"></div></div>
+  </div>
 
   <!-- The selected day, read the way the reference reads it: the numeral carries the
        screen, the month and year sit under it, the weekday balances the line. -->
-  <div id="cal-daynum" style="position:absolute;left:22px;top:150px;z-index:9;color:#270E0E;font:900 124px/.78 Archivo,sans-serif;letter-spacing:-.055em">20</div>
-  <div id="cal-daycal" style="position:absolute;left:25px;top:262px;z-index:9;color:rgba(39,14,14,.5);font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.17em">—</div>
+  <div id="cal-daynum" style="position:absolute;left:22px;top:190px;z-index:9;color:#270E0E;font:900 124px/.78 Archivo,sans-serif;letter-spacing:-.055em">20</div>
 
-  <div style="position:absolute;left:24px;right:24px;top:308px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;z-index:9">
+  <div style="position:absolute;left:24px;right:24px;top:330px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;z-index:9">
     <div style="min-width:0">
-      <div id="cal-month" style="color:#270E0E;font:900 27px/1 Archivo,sans-serif;letter-spacing:-.03em;white-space:nowrap">SEPTEMBER</div>
-      <div id="cal-year" style="margin-top:5px;color:rgba(39,14,14,.42);font:900 27px/1 Archivo,sans-serif;letter-spacing:-.03em">2026</div>
+      <div id="cal-month" style="color:#270E0E;font:900 27px/1 Archivo,sans-serif;letter-spacing:-.03em;white-space:nowrap">SEPT</div>
+      <div id="cal-year" style="margin-top:5px;color:rgba(39,14,14,.4);font:900 27px/1 Archivo,sans-serif;letter-spacing:-.03em">2026</div>
     </div>
     <div style="flex:none;text-align:right">
-      <div id="cal-downame" style="color:rgba(39,14,14,.42);font:900 27px/1 Archivo,sans-serif;letter-spacing:-.02em">SAT</div>
+      <div id="cal-downame" style="color:rgba(39,14,14,.4);font:900 27px/1 Archivo,sans-serif;letter-spacing:-.02em">SAT</div>
       <div style="margin-top:4px;display:flex;justify-content:flex-end;gap:4px">
         <button type="button" id="cal-prev" class="cal-nav" aria-label="Previous month">‹</button>
         <button type="button" id="cal-next" class="cal-nav" aria-label="Next month">›</button>
@@ -97,8 +101,8 @@
     </div>
   </div>
 
-  <div id="cal-dow" style="position:absolute;left:24px;right:24px;top:408px;display:grid;grid-template-columns:repeat(7,1fr);gap:9px;z-index:9"></div>
-  <div id="cal-grid" style="position:absolute;left:24px;right:24px;top:434px;display:grid;grid-template-columns:repeat(7,1fr);gap:9px;z-index:9"></div>
+  <div id="cal-dow" style="position:absolute;left:24px;right:24px;top:436px;display:grid;grid-template-columns:repeat(7,1fr);gap:9px;z-index:9"></div>
+  <div id="cal-grid" style="position:absolute;left:24px;right:24px;top:462px;display:grid;grid-template-columns:repeat(7,1fr);column-gap:9px;row-gap:12px;z-index:9"></div>
 </section>
 
 <!-- ═══════════════════════ CALCULATOR ═══════════════════════ -->
