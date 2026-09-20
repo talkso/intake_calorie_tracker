@@ -27,12 +27,14 @@ const GOAL_AT = 0.86;        // goal rule pinned at 86% of chart height in every
 // round cap rides the leading edge rather than the tail. At the sweeps the prototype drew
 // (180.2deg home, 152deg calculator) every layer lands on its hand-placed position to
 // within a fifth of a pixel.
-const HOME_ARC_ANCHOR = 48.2;
-const CALC_ARC_ANCHOR = 180;  // 6 o'clock
 const RING_C = 299.5;         // centre of the 599x599 ring box
 const BAND_R = 217.1375;      // centre radius of the ring band
 const CAP_R = 82.35;          // half the band width
 const CAP_HALF = Math.asin(CAP_R / BAND_R) * 180 / Math.PI;  // arc a cap covers, ~22.3deg
+const HOME_ARC_ANCHOR = 48.2;
+// Tail cap sits tangent to the vertical centreline at the bottom of the ring: its left
+// edge lands on the centre x, rather than the cap straddling 6 o'clock.
+const CALC_ARC_ANCHOR = 180 - CAP_HALF;
 const CALC_RING_C = { x: 203.5, y: 356.5 };  // ring centre in screen coords on calculator
 
 const SEG_MAP = {
