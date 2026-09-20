@@ -67,12 +67,12 @@
 
   <div style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
     <button type="button" id="calc-close" class="btn-close" style="width:29px;height:29px;border-radius:50%;border:0;background:#FF0000;color:#270E0E;font:900 12px/1 Archivo,sans-serif;-webkit-text-stroke:0.9px currentColor;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;flex:none">✕</button>
-    <div style="font:600 14px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;color:rgb(216,14,14);mix-blend-mode:difference">CALC</div><div style="width:29px;height:29px;border-radius:50%;background:#FF0000;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#270E0E"></div></div>
+    <div id="calc-title" style="font:600 14px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;color:#270E0E">CALC</div><div style="width:29px;height:29px;border-radius:50%;background:#FF0000;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#270E0E"></div></div>
   </div>
 
   <div style="position:absolute;left:0;right:0;top:0;height:534px;overflow:hidden;z-index:3">
   <div style="position: absolute; left: -93px; top: 108px; width: 520px; height: 520px; z-index: 3">
-    <div style="position: absolute; inset: -49px 0px 0px -6px; border-radius: 50%; mask: radial-gradient(circle closest-side, transparent 0px, transparent 45%, rgb(0, 0, 0) 45%, rgb(0, 0, 0) 100%); -webkit-mask: radial-gradient(circle closest-side, transparent 0px, transparent 45%, rgb(0, 0, 0) 45%, rgb(0, 0, 0) 100%); width: 599px; height: 599px; left: -3px; top: -51px; background-color: #270E0E"><div id="calc-arc-fill" style="position: absolute; inset: 0; border-radius: 50%; z-index: 2; background-color: #FF0000; -webkit-mask: conic-gradient(from 340deg,#000 0 152deg,rgba(0,0,0,0) 152.7deg 360deg); mask: conic-gradient(from 340deg,#000 0 152deg,rgba(0,0,0,0) 152.7deg 360deg); left: -31px; top: -15px"></div><div id="calc-arc-tail" style="position:absolute;left:378.51px;top:362.44px;width:164.7px;height:164.7px;border-radius:50%;z-index:2;background-color:#FF0000"></div><div id="calc-arc-cap" style="position:absolute;left:142.85px;top:12.95px;width:164.7px;height:164.7px;border-radius:50%;z-index:2;background-color:#FF0000"></div></div>
+    <div style="position: absolute; inset: -49px 0px 0px -6px; border-radius: 50%; mask: radial-gradient(circle closest-side, transparent 0px, transparent 45%, rgb(0, 0, 0) 45%, rgb(0, 0, 0) 100%); -webkit-mask: radial-gradient(circle closest-side, transparent 0px, transparent 45%, rgb(0, 0, 0) 45%, rgb(0, 0, 0) 100%); width: 599px; height: 599px; left: -3px; top: -51px; background-color: #270E0E"><div id="calc-arc-fill" style="position: absolute; inset: 0; border-radius: 50%; z-index: 2; background-color: #FF0000; -webkit-mask: conic-gradient(from 340deg,#000 0 152deg,rgba(0,0,0,0) 152.7deg 360deg); mask: conic-gradient(from 340deg,#000 0 152deg,rgba(0,0,0,0) 152.7deg 360deg); left: -31px; top: -15px"></div><div id="calc-arc-tail" style="position:absolute;left:217.15px;top:434.29px;width:164.7px;height:164.7px;border-radius:50%;z-index:2;background-color:#FF0000"></div><div id="calc-arc-cap" style="position:absolute;left:142.85px;top:12.95px;width:164.7px;height:164.7px;border-radius:50%;z-index:2;background-color:#FF0000"></div></div>
 
   <div style="position:absolute;left:161px;top:113px;width:271px;height:271px;border-radius:50%;z-index:6;background:conic-gradient(from 90deg,#270E0E 0deg 60deg,#FF5C4A 102deg 258deg,#270E0E 300deg 360deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 93.2%,#000 93.2% 100%);mask:radial-gradient(circle closest-side,transparent 0 93.2%,#000 93.2% 100%)"></div>
   <div style="position:absolute;left:160px;top:112px;width:273px;height:273px;border-radius:50%;border:5px solid #FF0000;box-sizing:border-box;z-index:6"></div>
@@ -83,9 +83,9 @@
   </div>
 
   <!-- The design set this ink to #270E0E because the red arc was always behind it. With a
-       proportional arc it often is not, so it difference-blends instead: over red it
-       resolves to exactly #270E0E as designed, over the dark ground it reads as red. -->
-  <div id="calc-pct" style="position: absolute; left: 0; right: 0; top: 110px; z-index: 10; text-align: center; color: rgb(216,14,14); mix-blend-mode: difference; font: 800 76px/.86 'Big Shoulders Display',sans-serif; letter-spacing: -.01em; font-size: 60px">0%</div>
+       proportional arc it often is not, so the colour flips with what is behind. The arc
+       edge is kept out of the glyph box (see renderCalc), so one flat colour always works. -->
+  <div id="calc-pct" style="position: absolute; left: 0; right: 0; top: 110px; z-index: 10; text-align: center; color: #270E0E; font: 800 76px/.86 'Big Shoulders Display',sans-serif; letter-spacing: -.01em; font-size: 60px"><span id="calc-pct-ink" style="display:inline-block">0%</span></div>
 
   <div style="position:absolute;left:0;right:0;top:523px;bottom:0;background:transparent;z-index:20">
 

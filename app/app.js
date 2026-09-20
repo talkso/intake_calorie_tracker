@@ -28,10 +28,12 @@ const GOAL_AT = 0.86;        // goal rule pinned at 86% of chart height in every
 // (180.2deg home, 152deg calculator) every layer lands on its hand-placed position to
 // within a fifth of a pixel.
 const HOME_ARC_ANCHOR = 48.2;
-const CALC_ARC_ANCHOR = 132;
-const RING_C = 299.5;        // centre of the 599x599 ring box
-const BAND_R = 217.1375;     // centre radius of the ring band
-const CAP_R = 82.35;         // half the band width
+const CALC_ARC_ANCHOR = 180;  // 6 o'clock
+const RING_C = 299.5;         // centre of the 599x599 ring box
+const BAND_R = 217.1375;      // centre radius of the ring band
+const CAP_R = 82.35;          // half the band width
+const CAP_HALF = Math.asin(CAP_R / BAND_R) * 180 / Math.PI;  // arc a cap covers, ~22.3deg
+const CALC_RING_C = { x: 203.5, y: 356.5 };  // ring centre in screen coords on calculator
 
 const SEG_MAP = {
   '0': 'abcdef', '1': 'bc', '2': 'abdeg', '3': 'abcdg', '4': 'bcfg',
@@ -166,6 +168,22 @@ function conicMask(from, sweep) {
 function capMask(pt) {
   return 'radial-gradient(circle ' + CAP_R + 'px at ' + pt.x.toFixed(2) + 'px ' +
          pt.y.toFixed(2) + 'px,#000 99%,rgba(0,0,0,0) 100%)';
+}
+
+/** Angular extent of the percentage readout as seen from the calculator's ring centre. */
+function pctInkAngles() {
+  const host = $('calc-pct'), ink = $('calc-pct-ink');
+  const x0 = host.offsetLeft + ink.offsetLeft, y0 = host.offsetTop + ink.offsetTop;
+  const x1 = x0 + ink.offsetWidth, y1 = y0 + ink.offsetHeight;
+  let lo = Infinity, hi = -Infinity;
+  for (const x of [x0, x1]) {
+    for (const y of [y0, y1]) {
+      const a = Math.atan2(x - CALC_RING_C.x, CALC_RING_C.y - y) * 180 / Math.PI;
+      lo = Math.min(lo, a);
+      hi = Math.max(hi, a);
+    }
+  }
+  return { lo, hi };
 }
 
 function placeCap(el, pt) {
@@ -343,10 +361,23 @@ function renderCalc() {
   const cur = parseFloat(ui.display) || 0;
   const preview = ui.op != null && !ui.fresh ? apply(ui.pending, cur, ui.op) : cur;
   const pct = clamp((logged + Math.max(preview, 0)) / g, 0, 1);
-  const sweep = pct * 360;
 
-  $('calc-pct').textContent = Math.round(pct * 100) + '%';
+  $('calc-pct-ink').textContent = Math.round(pct * 100) + '%';
   renderSegments(ui.display);
+
+  // Keep the arc's leading edge out of the percentage's glyph box. Half-covered, the
+  // number has no single readable colour; snapped past it, one flat colour always works.
+  // The window this skips is ~8% of the range.
+  let sweep = pct * 360;
+  const ink = pctInkAngles();
+  const enter = CALC_ARC_ANCHOR - CAP_HALF - ink.hi;
+  const exit = CALC_ARC_ANCHOR - CAP_HALF - ink.lo;
+  if (sweep > enter && sweep < exit) {
+    sweep = sweep - enter < exit - sweep ? enter : exit;
+  }
+  const onRed = sweep >= exit;
+  $('calc-pct').style.color = onRed ? '#270E0E' : '#FF0000';
+  $('calc-title').style.color = onRed ? '#270E0E' : '#FF0000';
 
   const lead = CALC_ARC_ANCHOR - sweep;
   const on = pct > 0;
