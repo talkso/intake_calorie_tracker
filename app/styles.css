@@ -1,0 +1,66 @@
+/* countcal — app shell.
+   The three screens are a verbatim port of the Claude Design prototype and carry their
+   own inline styles. Everything here is either shell plumbing (scaling, routing) or a
+   :hover/:active rule, which an inline style attribute cannot express. The prototype
+   runtime emitted those same rules with !important, so they do too. */
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+body {
+  font-family: Archivo, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Fills the letterbox left by contain-scaling the 402x874 canvas onto a viewport of a
+   different aspect ratio, so the edges read as a continuation of the screen. */
+#backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background: #FF0000;
+}
+
+#stage {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 402px;
+  height: 874px;
+  transform-origin: 0 0;
+  z-index: 1;
+}
+
+.screen { display: none; }
+.screen.active { display: block; }
+
+/* Prevents a flash of unstyled canvas before the first layout pass sizes the stage. */
+#stage:not(.ready) { visibility: hidden; }
+
+.nav-pill, .home-dot { cursor: pointer; user-select: none; -webkit-user-select: none; }
+
+/* ── pseudo-class states carried over from the prototype's style-active/style-hover ── */
+
+.btn-close:active { background: #270E0E !important; color: #FF0000 !important; }
+
+.k:active { background: #270E0E !important; color: #FF0000 !important; }
+
+.k-alt:active { background: #FF0000 !important; color: #270E0E !important; }
+
+.dial-btn:hover { background: rgba(255, 0, 0, .06) !important; }
+.dial-btn:active { background: rgba(255, 0, 0, .14) !important; transform: scale(.985) !important; }
+
+.view-toggle:active { color: #FFFFFF !important; }
+
+.range-btn:active { background: rgba(39, 14, 14, .7) !important; color: #FF0000 !important; }
+
+.tile { cursor: pointer; user-select: none; -webkit-user-select: none; }

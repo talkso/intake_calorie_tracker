@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>countcal</title>
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="countcal">
+<meta name="theme-color" content="#FF0000">
+
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icons/icon-180.png">
+<link rel="icon" href="./icons/icon-192.png" type="image/png">
+<link rel="stylesheet" href="./fonts.css">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<div id="backdrop"></div>
+
+<div id="stage">
+
+<!-- ═══════════════════════════ HOME ═══════════════════════════ -->
+<section class="screen" id="screen-home" style="position: relative; height: 874px; overflow: hidden; background-color: #FF0000">
+  <div style="position: absolute; left: 0; right: 0; top: 58px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; z-index: 9">
+    <div id="home-stats-btn" class="nav-pill" style="background: #270E0E; color: #FF0000; font: 600 11px/1 'IBM Plex Mono',monospace; letter-spacing: .16em; padding: 9px 13px">STATS</div>
+    <div style="position: absolute; left: 0; right: 0; text-align: center; color: #270E0E; font: 600 17px/1 'IBM Plex Mono',monospace; letter-spacing: .14em; pointer-events: none">intake</div>
+    <div style="width:29px;height:29px;border-radius:50%;border:2.5px solid #270E0E;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width: 8px; height: 8px; border-radius: 50%; background: #270E0E"></div></div>
+  </div>
+
+  <div style="position: absolute; left: 18px; top: 104px; z-index: 9; display: flex; flex-direction: column; gap: 2px; color: #270E0E">
+    <div style="font: 700 15px/1 Archivo,sans-serif; letter-spacing: .02em">Left:</div>
+    <div style="display: flex; align-items: baseline; gap: 4px"><div id="home-left-val" style="font: 900 52px/.85 Archivo,sans-serif; letter-spacing: -.02em">425</div><div style="font: 900 34px/.85 Archivo,sans-serif; letter-spacing: -.01em">Cal</div></div>
+  </div>
+
+  <div style="position: absolute; left: 30px; top: 230px; width: 520px; height: 520px; z-index: 3">
+    <div style="position: absolute; inset: -49px 0px 0px -6px; border-radius: 50%; mask: radial-gradient(circle closest-side, transparent 0px, transparent 45%, rgb(0, 0, 0) 45%, rgb(0, 0, 0) 100%); -webkit-mask: radial-gradient(circle closest-side, transparent 0px, transparent 45%, rgb(0, 0, 0) 45%, rgb(0, 0, 0) 100%); width: 599px; height: 599px; left: -3px; top: -51px; background-color: #B90000"><div id="home-arc-fill" style="position:absolute;inset:0;border-radius:50%;z-index:2;background-color:#270E0E;-webkit-mask:conic-gradient(from 228deg,#000 0 180.2deg,rgba(0,0,0,0) 180.9deg 360deg);mask:conic-gradient(from 228deg,#000 0 180.2deg,rgba(0,0,0,0) 180.9deg 360deg)"></div><div id="home-arc-cap" style="position:absolute;left:55.85px;top:362.45px;width:164.7px;height:164.7px;border-radius:50%;z-index:2;background-color:#270E0E"></div></div>
+
+    <div style="position:absolute;left:-3px;top:-51px;width:599px;height:599px;border-radius:50%;z-index:3;background:repeating-conic-gradient(from 0deg,#6A1608 0 0.62deg,rgba(0,0,0,0) 0.62deg 4deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 46.5%,rgba(0,0,0,.28) 46.5%,rgba(0,0,0,.5) 52%,transparent 52%);mask:radial-gradient(circle closest-side,transparent 0 46.5%,rgba(0,0,0,.28) 46.5%,rgba(0,0,0,.5) 52%,transparent 52%)"></div>
+    <div style="position:absolute;left:-3px;top:-51px;width:599px;height:599px;border-radius:50%;z-index:3;background:repeating-conic-gradient(from 0deg,#6A1608 0 0.62deg,rgba(0,0,0,0) 0.62deg 8deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 52%,rgba(0,0,0,.5) 52%,rgba(0,0,0,.78) 58%,transparent 58%);mask:radial-gradient(circle closest-side,transparent 0 52%,rgba(0,0,0,.5) 52%,rgba(0,0,0,.78) 58%,transparent 58%)"></div>
+    <div style="position:absolute;left:-3px;top:-51px;width:599px;height:599px;border-radius:50%;z-index:3;background:repeating-conic-gradient(from 0deg,#6A1608 0 0.62deg,rgba(0,0,0,0) 0.62deg 16deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 58%,rgba(0,0,0,.78) 58%,rgba(0,0,0,1) 65%,transparent 65%);mask:radial-gradient(circle closest-side,transparent 0 58%,rgba(0,0,0,.78) 58%,rgba(0,0,0,1) 65%,transparent 65%)"></div>
+    <div style="position:absolute;left:-3px;top:-51px;width:599px;height:599px;border-radius:50%;z-index:3;background:repeating-conic-gradient(from 2deg,#380A02 0 0.45deg,rgba(0,0,0,0) 0.45deg 3.5deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 96.8%,#000 96.8% 98.4%,transparent 98.4%);mask:radial-gradient(circle closest-side,transparent 0 96.8%,#000 96.8% 98.4%,transparent 98.4%)"></div>
+    <div style="position:absolute;left:-3px;top:-51px;width:599px;height:599px;border-radius:50%;z-index:3;background:repeating-conic-gradient(from 2deg,#380A02 0 0.45deg,rgba(0,0,0,0) 0.45deg 7deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 88.6%,#000 88.6% 95.2%,transparent 95.2%);mask:radial-gradient(circle closest-side,transparent 0 88.6%,#000 88.6% 95.2%,transparent 95.2%)"></div>
+    <div style="position:absolute;left:-3px;top:-51px;width:599px;height:599px;border-radius:50%;z-index:3;background:repeating-conic-gradient(from 2deg,#380A02 0 0.45deg,rgba(0,0,0,0) 0.45deg 7deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 96.1%,#000 96.1% 96.8%,transparent 96.8%);mask:radial-gradient(circle closest-side,transparent 0 96.1%,#000 96.1% 96.8%,transparent 96.8%)"></div>
+    <div style="position:absolute;left:-3px;top:-51px;width:599px;height:599px;border-radius:50%;z-index:3;background:repeating-conic-gradient(from 5.5deg,#380A02 0 0.45deg,rgba(0,0,0,0) 0.45deg 14deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 95.7%,#000 95.7% 96.8%,transparent 96.8%);mask:radial-gradient(circle closest-side,transparent 0 95.7%,#000 95.7% 96.8%,transparent 96.8%)"></div>
+
+    <div id="home-tick-clip" style="position:absolute;left:-3px;top:-51px;width:599px;height:599px;z-index:5;-webkit-mask-image:conic-gradient(from 228deg,#000 0 180.2deg,rgba(0,0,0,0) 180.9deg 360deg),radial-gradient(circle 82.35px at 138.2px 444.8px,#000 99%,rgba(0,0,0,0) 100%);-webkit-mask-composite:source-over;mask-image:conic-gradient(from 228deg,#000 0 180.2deg,rgba(0,0,0,0) 180.9deg 360deg),radial-gradient(circle 82.35px at 138.2px 444.8px,#000 99%,rgba(0,0,0,0) 100%);mask-composite:add"><div style="position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from 0deg,#7C3928 0 0.62deg,rgba(0,0,0,0) 0.62deg 4deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 46.5%,rgba(0,0,0,.28) 46.5%,rgba(0,0,0,.5) 52%,transparent 52%);mask:radial-gradient(circle closest-side,transparent 0 46.5%,rgba(0,0,0,.28) 46.5%,rgba(0,0,0,.5) 52%,transparent 52%)"></div><div style="position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from 0deg,#7C3928 0 0.62deg,rgba(0,0,0,0) 0.62deg 8deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 52%,rgba(0,0,0,.5) 52%,rgba(0,0,0,.78) 58%,transparent 58%);mask:radial-gradient(circle closest-side,transparent 0 52%,rgba(0,0,0,.5) 52%,rgba(0,0,0,.78) 58%,transparent 58%)"></div><div style="position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from 0deg,#7C3928 0 0.62deg,rgba(0,0,0,0) 0.62deg 16deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 58%,rgba(0,0,0,.78) 58%,rgba(0,0,0,1) 65%,transparent 65%);mask:radial-gradient(circle closest-side,transparent 0 58%,rgba(0,0,0,.78) 58%,rgba(0,0,0,1) 65%,transparent 65%)"></div><div style="position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from 2deg,#48210F 0 0.45deg,rgba(0,0,0,0) 0.45deg 3.5deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 96.8%,#000 96.8% 98.4%,transparent 98.4%);mask:radial-gradient(circle closest-side,transparent 0 96.8%,#000 96.8% 98.4%,transparent 98.4%)"></div><div style="position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from 2deg,#48210F 0 0.45deg,rgba(0,0,0,0) 0.45deg 7deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 88.6%,#000 88.6% 95.2%,transparent 95.2%);mask:radial-gradient(circle closest-side,transparent 0 88.6%,#000 88.6% 95.2%,transparent 95.2%)"></div><div style="position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from 2deg,#48210F 0 0.45deg,rgba(0,0,0,0) 0.45deg 7deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 96.1%,#000 96.1% 96.8%,transparent 96.8%);mask:radial-gradient(circle closest-side,transparent 0 96.1%,#000 96.1% 96.8%,transparent 96.8%)"></div><div style="position:absolute;inset:0;border-radius:50%;background:repeating-conic-gradient(from 5.5deg,#48210F 0 0.45deg,rgba(0,0,0,0) 0.45deg 14deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 95.7%,#000 95.7% 96.8%,transparent 96.8%);mask:radial-gradient(circle closest-side,transparent 0 95.7%,#000 95.7% 96.8%,transparent 96.8%)"></div></div>
+
+    <div style="position: absolute; left: 1px; top: -19px; width: 123px; height: 123px; border-radius: 50%; color: #270E0E; display: flex; align-items: center; justify-content: center; z-index: 8; background-color: #FF0000; border: 3px solid #270E0E; box-sizing: border-box"><div id="home-day" style="font: 900 21px/1 Archivo,sans-serif; letter-spacing: -.03em">MON.</div></div>
+
+    <div style="position:absolute;left:161px;top:113px;width:271px;height:271px;border-radius:50%;z-index:6;pointer-events:none;background:conic-gradient(from 90deg,#FF0000 0deg 60deg,#FF5C4A 102deg 258deg,#FF0000 300deg 360deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 93.2%,#000 93.2% 100%);mask:radial-gradient(circle closest-side,transparent 0 93.2%,#000 93.2% 100%)"></div>
+    <div style="position:absolute;left:160px;top:112px;width:273px;height:273px;border-radius:50%;border:5px solid #270E0E;box-sizing:border-box;z-index:6;pointer-events:none"></div>
+
+    <div id="home-open-calc" class="home-dot" style="position: absolute; left: 275px; top: 227px; width: 43px; height: 43px; z-index: 5"><div style="position: absolute; left: 8px; top: 8px; width: 27px; height: 27px; border-radius: 50%; background: #270E0E"></div></div>
+  </div>
+
+  <div id="home-max" style="position: absolute; left: 18px; z-index: 9; color: rgb(39, 14, 14); font: 600 15px / 1 &quot;IBM Plex Mono&quot;, monospace; letter-spacing: 0.1em; top: 800px">1900 cal maximum.</div>
+</section>
+
+<!-- ═══════════════════════ CALCULATOR ═══════════════════════ -->
+<section class="screen" id="screen-calc" style="position:relative;height:874px;overflow:hidden;background:#270E0E;font-family:Archivo,sans-serif">
+
+  <div style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
+    <button type="button" id="calc-close" class="btn-close" style="width:29px;height:29px;border-radius:50%;border:0;background:#FF0000;color:#270E0E;font:900 12px/1 Archivo,sans-serif;-webkit-text-stroke:0.9px currentColor;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;flex:none">✕</button>
+    <div style="font:600 14px/1 'IBM Plex Mono',monospace;letter-spacing:.16em">CALC</div><div style="width:29px;height:29px;border-radius:50%;background:#FF0000;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#270E0E"></div></div>
+  </div>
+
+  <div style="position:absolute;left:0;right:0;top:0;height:534px;overflow:hidden;z-index:3">
+  <div style="position: absolute; left: -93px; top: 108px; width: 520px; height: 520px; z-index: 3">
+    <div style="position: absolute; inset: -49px 0px 0px -6px; border-radius: 50%; mask: radial-gradient(circle closest-side, transparent 0px, transparent 45%, rgb(0, 0, 0) 45%, rgb(0, 0, 0) 100%); -webkit-mask: radial-gradient(circle closest-side, transparent 0px, transparent 45%, rgb(0, 0, 0) 45%, rgb(0, 0, 0) 100%); width: 599px; height: 599px; left: -3px; top: -51px; background-color: #270E0E"><div id="calc-arc-fill" style="position: absolute; inset: 0; border-radius: 50%; z-index: 2; background-color: #FF0000; -webkit-mask: conic-gradient(from 340deg,#000 0 152deg,rgba(0,0,0,0) 152.7deg 360deg); mask: conic-gradient(from 340deg,#000 0 152deg,rgba(0,0,0,0) 152.7deg 360deg); left: -31px; top: -15px"></div><div id="calc-arc-blob-rot" style="position:absolute;inset:0;z-index:2"><div id="calc-arc-blob" style="position:absolute;left:297px;top:362.45px;width:246px;height:246px;border-radius:50%;background-color:#FF0000"></div></div><div id="calc-arc-cap" style="position:absolute;left:142.85px;top:12.95px;width:164.7px;height:164.7px;border-radius:50%;z-index:2;background-color:#FF0000"></div></div>
+
+  <div style="position:absolute;left:161px;top:113px;width:271px;height:271px;border-radius:50%;z-index:6;background:conic-gradient(from 90deg,#270E0E 0deg 60deg,#FF5C4A 102deg 258deg,#270E0E 300deg 360deg);-webkit-mask:radial-gradient(circle closest-side,transparent 0 93.2%,#000 93.2% 100%);mask:radial-gradient(circle closest-side,transparent 0 93.2%,#000 93.2% 100%)"></div>
+  <div style="position:absolute;left:160px;top:112px;width:273px;height:273px;border-radius:50%;border:5px solid #FF0000;box-sizing:border-box;z-index:6"></div>
+
+  <button type="button" id="calc-dial-btn" class="dial-btn" aria-label="Log entry" style="position:absolute;left:166px;top:118px;width:261px;height:261px;border-radius:50%;border:0;padding:0;background:transparent;cursor:pointer;z-index:9;-webkit-tap-highlight-color:transparent;transition:background .12s,transform .12s"></button>
+
+  <div id="calc-seg" style="position:absolute;left:296.5px;top:248.5px;transform:translate(-50%,-50%) scale(1.42);display:flex;align-items:flex-end;gap:7px;z-index:8"></div></div>
+  </div>
+
+  <div id="calc-pct" style="position: absolute; left: 0; right: 0; top: 110px; z-index: 10; text-align: center; color: #270E0E; font: 800 76px/.86 'Big Shoulders Display',sans-serif; letter-spacing: -.01em; font-size: 60px">0%</div>
+
+  <div style="position:absolute;left:0;right:0;top:523px;bottom:0;background:transparent;z-index:20">
+
+    <div id="calc-marks" style="position:absolute;left:24px;right:24px;top:14px;height:8px;display:flex;align-items:stretch;gap:9px;z-index:1">
+      <div style="width:8px;flex:none;background:#FF0000;clip-path:polygon(100% 0,100% 100%,0 100%)"></div>
+    </div>
+
+    <div id="calc-keypad" style="position:absolute;left:24px;right:24px;top:29px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <button type="button" class="k" data-key="7" style="height:62px;border-radius:12px;border:0;background:#FF0000;box-shadow:inset 0 0 0 2.5px #FF0000,inset 0 0 0 3.5px #270E0E;color:#270E0E;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;font:900 15px/1 Orbitron,sans-serif">7</button>
+      <button type="button" class="k" data-key="8" style="height:62px;border-radius:12px;border:0;background:#FF0000;box-shadow:inset 0 0 0 2.5px #FF0000,inset 0 0 0 3.5px #270E0E;color:#270E0E;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;font:900 15px/1 Orbitron,sans-serif">8</button>
+      <button type="button" class="k" data-key="9" style="height:62px;border-radius:12px;border:0;background:#FF0000;box-shadow:inset 0 0 0 2.5px #FF0000,inset 0 0 0 3.5px #270E0E;color:#270E0E;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;font:900 15px/1 Orbitron,sans-serif">9</button>
+      <button type="button" class="k" data-key="4" style="height:62px;border-radius:12px;border:0;background:#FF0000;box-shadow:inset 0 0 0 2.5px #FF0000,inset 0 0 0 3.5px #270E0E;color:#270E0E;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;font:900 15px/1 Orbitron,sans-serif">4</button>
+      <button type="button" class="k" data-key="5" style="height:62px;border-radius:12px;border:0;background:#FF0000;box-shadow:inset 0 0 0 2.5px #FF0000,inset 0 0 0 3.5px #270E0E;color:#270E0E;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;font:900 15px/1 Orbitron,sans-serif">5</button>
+      <button type="button" class="k" data-key="6" style="height:62px;border-radius:12px;border:0;background:#FF0000;box-shadow:inset 0 0 0 2.5px #FF0000,inset 0 0 0 3.5px #270E0E;color:#270E0E;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;font:900 15px/1 Orbitron,sans-serif">6</button>
+      <button type="button" class="k" data-key="1" style="height:62px;border-radius:12px;border:0;background:#FF0000;box-shadow:inset 0 0 0 2.5px #FF0000,inset 0 0 0 3.5px #270E0E;color:#270E0E;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;font:900 15px/1 Orbitron,sans-serif">1</button>
+      <button type="button" class="k" data-key="2" style="height:62px;border-radius:12px;border:0;background:#FF0000;box-shadow:inset 0 0 0 2.5px #FF0000,inset 0 0 0 3.5px #270E0E;color:#270E0E;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;font:900 15px/1 Orbitron,sans-serif">2</button>
+      <button type="button" class="k" data-key="3" style="height:62px;border-radius:12px;border:0;background:#FF0000;box-shadow:inset 0 0 0 2.5px #FF0000,inset 0 0 0 3.5px #270E0E;color:#270E0E;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;font:900 15px/1 Orbitron,sans-serif">3</button>
+      <button type="button" class="k-alt" data-key="del" style="height:62px;border-radius:12px;border:0;background:#3A1513;box-shadow:inset 0 0 0 2.5px #3A1513,inset 0 0 0 3.5px #FF0000;color:#FF0000;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;font:900 15px/1 Orbitron,sans-serif">⌫</button>
+      <button type="button" class="k" data-key="0" style="height:62px;border-radius:12px;border:0;background:#FF0000;box-shadow:inset 0 0 0 2.5px #FF0000,inset 0 0 0 3.5px #270E0E;color:#270E0E;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;font:900 15px/1 Orbitron,sans-serif">0</button>
+      <button type="button" class="k-alt" data-key="eq" style="height:62px;border-radius:12px;border:0;background:#3A1513;box-shadow:inset 0 0 0 2.5px #3A1513,inset 0 0 0 3.5px #FF0000;color:#FF0000;font:900 15px/1 Orbitron,sans-serif;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer">=</button>
+    </div>
+
+    <div id="calc-history" style="position:absolute;left:24px;right:24px;top:29px;bottom:26px;display:none;align-items:stretch;justify-content:center;gap:8px;overflow:hidden"></div>
+
+    <button type="button" id="calc-view-toggle" class="view-toggle" style="position: absolute; left: 24px; top: -18px; z-index: 22; border: 0; background: transparent; color: #FF0000; font: 600 11px/1 'IBM Plex Mono',monospace; letter-spacing: .16em; padding: 9px 0; cursor: pointer">HISTORY</button>
+  </div>
+
+</section>
+
+<!-- ═══════════════════════════ STATS ═══════════════════════════ -->
+<section class="screen" id="screen-stats" style="position:relative;height:874px;overflow:hidden;background:#C0C3B0;font-family:Archivo,sans-serif">
+
+  <div style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
+    <div id="stats-home-btn" class="nav-pill" style="background:#FF0000;color:#270E0E;font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;padding:9px 13px">HOME</div>
+    <div style="position:absolute;left:0;right:0;text-align:center;color:#270E0E;font:600 17px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;pointer-events:none">stats</div>
+    <div style="width:29px;height:29px;border-radius:50%;border:2.5px solid #FF0000;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#FF0000"></div></div>
+  </div>
+
+  <div style="position:absolute;left:24px;right:24px;top:104px;z-index:7;color:#270E0E">
+    <div id="stats-hero-caption" style="font: 600 10px/1 'IBM Plex Mono',monospace; letter-spacing: .2em; color: #270E0E; white-space: nowrap">AVERAGE PER 7 DAYS</div>
+    <div style="display:flex;align-items:baseline;gap:5px;margin-top:13px">
+      <div id="stats-hero-value" style="font:900 62px/.82 Archivo,sans-serif;letter-spacing:-.04em">0</div>
+      <div style="font:900 44px/.82 Archivo,sans-serif;letter-spacing:-.02em;color:transparent;-webkit-text-stroke:2px #270E0E">cal</div>
+    </div>
+  </div>
+
+  <div style="position:absolute;left:24px;right:24px;top:198px;height:1px;background:#9BA08B;z-index:7"></div>
+  <div style="position:absolute;left:24px;right:24px;top:234px;height:1px;background:#9BA08B;z-index:7"></div>
+
+  <div style="position:absolute;left:24px;right:24px;top:236px;height:248px;z-index:4">
+    <div style="position:absolute;left:0;right:0;bottom:0;height:2px;background:#8F9482"></div>
+
+    <div id="stats-bars" style="position:absolute;left:0;right:0;top:0;bottom:2px;display:flex;align-items:flex-end;gap:10px"></div>
+
+    <div id="stats-goal-line" style="position:absolute;left:0;right:0;bottom:86.00%;height:0;border-top:2px dashed #FF0000;z-index:5">
+      <div style="position:absolute;left:0;top:0;transform:translateY(-50%);background:#C0C3B0;padding:3px 7px 3px 0;font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#FF0000;white-space:nowrap">GOAL <span id="stats-goal-value">1,900</span></div>
+    </div>
+  </div>
+
+  <div id="stats-xlabels" style="position:absolute;left:24px;right:24px;top:488px;height:12px;z-index:6"></div>
+
+  <!-- Backing bled past the canvas edge so the panel's own edge antialiases against red
+       rather than the sage ground when the stage is scaled by a fraction. Clipped away
+       entirely at 1:1, and nothing inside the panel moves. -->
+  <div style="position:absolute;left:-2px;right:-2px;top:500px;bottom:0;background:#FF0000;z-index:8"></div>
+
+  <div style="position:absolute;left:0;right:0;top:500px;bottom:0;background:#FF0000;overflow:hidden;z-index:8">
+    <div id="stats-meal-labels" style="position:absolute;left:24px;right:24px;top:18px;height:12px;color:#270E0E"></div>
+
+    <div style="position:absolute;left:24px;right:24px;top:31px;height:2px;background:rgba(39,14,14,.55)"></div>
+
+    <div id="stats-meal-cols" style="position:absolute;left:24px;right:24px;top:37px;height:176px;display:flex;align-items:flex-start;gap:10px"></div>
+
+    <div id="stats-sel-times" style="position:absolute;left:-2px;right:-2px;top:235px;bottom:118px;background:#270E0E;padding:14px 26px;box-sizing:border-box;display:none;flex-direction:column;justify-content:flex-start;gap:12px;overflow:hidden">
+      <div id="stats-sel-caption" style="color:#FF0000;font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.2em;white-space:nowrap"></div>
+      <div id="stats-sel-list" style="display:flex;flex-wrap:wrap;gap:8px 20px;align-items:flex-end"></div>
+    </div>
+
+    <div style="position:absolute;left:24px;right:20px;bottom:26px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div style="position:relative;top:-30px;display:flex;flex-direction:column;gap:11px;align-items:flex-start;color:#270E0E">
+        <div id="stats-meals-big" style="font:900 45px/.86 Archivo,sans-serif;letter-spacing:-.03em;white-space:nowrap;margin-left:-2px">NO DATA</div>
+        <div id="stats-meals-caption" style="font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;white-space:nowrap">AVERAGE MEAL TIMES PER 7 DAYS</div>
+      </div>
+      <button type="button" id="stats-range-btn" class="range-btn" aria-label="Cycle range" style="width:54px;height:54px;border-radius:50%;border:0;padding:0;cursor:pointer;background:#270E0E;color:#FF0000;display:flex;align-items:center;justify-content:center;font:600 13px/1 'IBM Plex Mono',monospace;letter-spacing:.06em;flex:none">7D</button>
+    </div>
+  </div>
+
+</section>
+
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>
