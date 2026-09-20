@@ -64,13 +64,17 @@
   <!-- Day picker. The first circle lands exactly on the badge, so opening it reads as the
        badge growing a stack rather than a panel appearing over it. -->
   <div id="home-picker-backdrop" style="position:absolute;inset:0;z-index:19;display:none"></div>
-  <div id="home-picker" style="position:absolute;left:31px;top:211px;width:123px;height:491px;z-index:20;display:none;-webkit-mask-image:linear-gradient(to bottom,#000 0,#000 75%,rgba(0,0,0,.4) 88%,rgba(0,0,0,.4) 100%);mask-image:linear-gradient(to bottom,#000 0,#000 75%,rgba(0,0,0,.4) 88%,rgba(0,0,0,.4) 100%)">
+  <!-- The tail of the fade runs to zero just short of the bottom edge, so the circle
+       queued behind the faded one never shows its arc below it. -->
+  <div id="home-picker" style="position:absolute;left:31px;top:211px;width:123px;height:491px;z-index:20;display:none;-webkit-mask-image:linear-gradient(to bottom,#000 0,#000 75%,rgba(0,0,0,.4) 88%,rgba(0,0,0,.4) 92%,rgba(0,0,0,0) 99.5%);mask-image:linear-gradient(to bottom,#000 0,#000 75%,rgba(0,0,0,.4) 88%,rgba(0,0,0,.4) 92%,rgba(0,0,0,0) 99.5%)">
     <div id="home-picker-scroll" class="noscrollbar" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain"></div>
   </div>
-  <button type="button" id="home-cal-btn" aria-label="Open calendar" style="position:absolute;left:2px;top:247px;width:28px;height:52px;z-index:21;display:none;border:0;background:transparent;padding:0;cursor:pointer;align-items:center;justify-content:center;flex-direction:column;gap:5px">
-    <span style="width:7px;height:7px;border-radius:50%;background:#270E0E;display:block"></span>
-    <span style="width:7px;height:7px;border-radius:50%;background:#270E0E;display:block"></span>
-    <span style="width:7px;height:7px;border-radius:50%;background:#270E0E;display:block"></span>
+  <!-- Sits off the top-left shoulder of the first circle, not level with its middle.
+       The dots pack to the top of a taller box so the tap target stays finger-sized. -->
+  <button type="button" id="home-cal-btn" aria-label="Open calendar" style="position:absolute;left:0;top:214px;width:32px;height:48px;z-index:21;display:none;border:0;background:transparent;padding:0;cursor:pointer;align-items:center;justify-content:flex-start;flex-direction:column;gap:4px">
+    <span style="width:5.5px;height:5.5px;border-radius:50%;background:#270E0E;display:block"></span>
+    <span style="width:5.5px;height:5.5px;border-radius:50%;background:#270E0E;display:block"></span>
+    <span style="width:5.5px;height:5.5px;border-radius:50%;background:#270E0E;display:block"></span>
   </button>
 </section>
 

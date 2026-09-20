@@ -95,6 +95,7 @@ const ui = {
 const PICK_SIZE = 123;       // the badge's diameter, reused for every day circle
 const PICK_STEP = 92;        // so consecutive circles overlap by 31px
 const PICK_VIEW = 491;       // four circles plus the faded fifth
+const PICK_DAYS = 6;         // today plus six, a full week of named days
 
 // ── derived data: real entries only ──────────────────────────────────────────
 let dayIndex = new Map();
@@ -137,7 +138,9 @@ function daysBack(date) {
 
 function dayLabel(d) {
   const dt = dayAt(d);
-  if (d <= 2) return dt.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() + '.';
+  // A weekday name is unambiguous only inside the week the picker offers; past
+  // that - days reached through the calendar - it has to be a date.
+  if (d <= PICK_DAYS) return dt.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() + '.';
   return (dt.getMonth() + 1) + '/' + dt.getDate();
 }
 
@@ -327,12 +330,6 @@ function renderHome() {
   clip.style.maskComposite = 'add,add';
 }
 
-/** How far back the picker lets you scroll: to the first entry, but never a stub list. */
-function pickerSpan() {
-  if (!store.entries.length) return 13;
-  return clamp(daysBack(new Date(store.entries[0].t)) || 0, 13, 400);
-}
-
 const DAY_OPT_STYLE =
   'position:relative;width:' + PICK_SIZE + 'px;height:' + PICK_SIZE + 'px;border-radius:50%;' +
   'box-sizing:border-box;background:#FF0000;border:3px solid #270E0E;color:#270E0E;' +
@@ -351,19 +348,26 @@ function renderPicker() {
 
   const host = $('home-picker-scroll');
   clear(host);
-  host.style.paddingBottom = (PICK_VIEW - PICK_SIZE) + 'px';
-  const span = pickerSpan();
-  for (let d = 0; d <= span; d++) {
-    const opt = el('div', DAY_OPT_STYLE + 'z-index:' + (span - d), dayLabel(d));
+  const last = PICK_DAYS + 1;
+  // The overlap means the stack is only last*PICK_STEP + PICK_SIZE tall no matter how
+  // the circles are counted. Pad it until the last one can scroll clear of the faded
+  // slot into the fourth, where it is legible and tappable.
+  host.style.paddingBottom =
+    (PICK_VIEW + (last - 3) * PICK_STEP - (last + 1) * PICK_STEP) + 'px';
+  for (let i = 0; i <= last; i++) {
+    const day = i <= PICK_DAYS ? i : null;
+    const opt = el('div', DAY_OPT_STYLE + 'z-index:' + (last - i),
+      day === null ? 'LOG.' : dayLabel(day));
     opt.className = 'day-opt';
     opt.addEventListener('click', () => {
-      ui.day = d;
       ui.picker = false;
+      if (day === null) { ui.calMonth = monthStart(dayAt(ui.day)); go('calendar'); return; }
+      ui.day = day;
       render();
     });
     host.appendChild(opt);
   }
-  host.scrollTop = ui.day * PICK_STEP;
+  host.scrollTop = 0;
 }
 
 // ══════════════════════════ CALENDAR ══════════════════════════
