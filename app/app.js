@@ -286,7 +286,7 @@ function go(screen) {
   // The calculator always opens on the keypad, never on whatever view was left behind.
   if (screen === 'calc') {
     ui.view = 'calc';
-    ui.selTile = null;
+    disarmTile();
     ui.histX = 0;
     histSlider.stop();
   }
@@ -602,6 +602,27 @@ function renderCalc() {
   if (!isCalc) renderHistory(entries);
 }
 
+// How long a tapped tile stays armed. Long enough not to be a race, short enough that
+// a tile left black is never stale: when the window shuts the tile goes back to red,
+// so what you see is always what a second tap would do.
+const ARM_MS = 2000;
+let armTimer = 0;
+
+function armTile(t) {
+  clearTimeout(armTimer);
+  ui.selTile = t;
+  armTimer = setTimeout(() => {
+    if (ui.selTile !== t) return;
+    ui.selTile = null;
+    render();
+  }, ARM_MS);
+}
+
+function disarmTile() {
+  clearTimeout(armTimer);
+  ui.selTile = null;
+}
+
 // The parallelogram's slant, which is also how far each tile is pulled back over the
 // last so the two interlock instead of leaving a wedge of ground between them.
 const TILE_W = 172.67;
@@ -658,13 +679,16 @@ function renderHistory(entries) {
     tile.appendChild(el('div',
       "position:absolute;left:9px;bottom:13px;font:600 12px/1 'IBM Plex Mono',monospace;letter-spacing:.1em",
       clock(e.t)));
+    // Two deliberate taps rather than a double-click. The browser pairs a double-click
+    // by target, and the first tap rebuilds this row, so the node it landed on is gone
+    // before the second arrives - which is why deleting only worked about half the time.
     tile.addEventListener('click', () => {
-      ui.selTile = ui.selTile === e.t ? null : e.t;
-      render();
-    });
-    tile.addEventListener('dblclick', () => {
-      removeEntry(e.t);
-      ui.selTile = null;
+      if (ui.selTile === e.t) {
+        disarmTile();
+        removeEntry(e.t);
+      } else {
+        armTile(e.t);
+      }
       render();
     });
     track.appendChild(tile);
@@ -1007,7 +1031,7 @@ $('calc-close').addEventListener('click', () => { clearCalc(); go('home'); });
 $('calc-dial-btn').addEventListener('click', () => { if (equals()) go('home'); });
 $('calc-view-toggle').addEventListener('click', () => {
   ui.view = ui.view === 'calc' ? 'history' : 'calc';
-  ui.selTile = null;
+  disarmTile();
   ui.histX = 0;
   histSlider.stop();
   render();
@@ -1167,7 +1191,7 @@ const histSlider = makeSlider($('screen-calc'), {
   perPx: () => -1,
   value: () => ui.histX,
   limits: () => ({ min: 0, max: histOverflow() }),
-  onGrab: () => { ui.selTile = null; render(); },
+  onGrab: () => { disarmTile(); render(); },
   move: v => {
     ui.histX = v;
     const track = $('calc-history').firstChild;
