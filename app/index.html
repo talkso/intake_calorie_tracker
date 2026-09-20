@@ -76,28 +76,29 @@
 
 <!-- ═══════════════════════════ CALENDAR ═══════════════════════════ -->
 <section class="screen" id="screen-calendar" style="position:relative;height:874px;overflow:hidden;background-color:#FF0000">
-  <div style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
-    <div id="cal-back-btn" class="nav-pill" style="background:#270E0E;color:#FF0000;font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;padding:9px 13px">BACK</div>
-    <div style="position:absolute;left:0;right:0;text-align:center;color:#270E0E;font:600 17px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;pointer-events:none">log</div>
-    <div style="width:29px;height:29px;border-radius:50%;border:2.5px solid #270E0E;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#270E0E"></div></div>
-  </div>
+  <button type="button" id="cal-back-btn" aria-label="Back" style="position:absolute;left:18px;top:50px;width:40px;height:40px;border:0;padding:0;background:transparent;cursor:pointer;color:#270E0E;font:900 21px/1 Archivo,sans-serif;display:flex;align-items:center;justify-content:center;z-index:9">←</button>
 
-  <div style="position:absolute;left:24px;right:24px;top:110px;display:flex;align-items:center;justify-content:space-between;gap:12px;z-index:9;color:#270E0E">
-    <div id="cal-month" style="font:900 32px/.86 Archivo,sans-serif;letter-spacing:-.035em;white-space:nowrap;min-width:0">SEPTEMBER</div>
-    <div style="display:flex;gap:9px;flex:none">
-      <button type="button" id="cal-prev" class="range-btn" aria-label="Previous month" style="width:44px;height:44px;border-radius:50%;border:0;padding:0;cursor:pointer;background:#270E0E;color:#FF0000;display:flex;align-items:center;justify-content:center;font:900 20px/1 Archivo,sans-serif">‹</button>
-      <button type="button" id="cal-next" class="range-btn" aria-label="Next month" style="width:44px;height:44px;border-radius:50%;border:0;padding:0;cursor:pointer;background:#270E0E;color:#FF0000;display:flex;align-items:center;justify-content:center;font:900 20px/1 Archivo,sans-serif">›</button>
+  <!-- The selected day, read the way the reference reads it: the numeral carries the
+       screen, the month and year sit under it, the weekday balances the line. -->
+  <div id="cal-daynum" style="position:absolute;left:22px;top:150px;z-index:9;color:#270E0E;font:900 124px/.78 Archivo,sans-serif;letter-spacing:-.055em">20</div>
+  <div id="cal-daycal" style="position:absolute;left:25px;top:262px;z-index:9;color:rgba(39,14,14,.5);font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.17em">—</div>
+
+  <div style="position:absolute;left:24px;right:24px;top:308px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;z-index:9">
+    <div style="min-width:0">
+      <div id="cal-month" style="color:#270E0E;font:900 27px/1 Archivo,sans-serif;letter-spacing:-.03em;white-space:nowrap">SEPTEMBER</div>
+      <div id="cal-year" style="margin-top:5px;color:rgba(39,14,14,.42);font:900 27px/1 Archivo,sans-serif;letter-spacing:-.03em">2026</div>
+    </div>
+    <div style="flex:none;text-align:right">
+      <div id="cal-downame" style="color:rgba(39,14,14,.42);font:900 27px/1 Archivo,sans-serif;letter-spacing:-.02em">SAT</div>
+      <div style="margin-top:4px;display:flex;justify-content:flex-end;gap:4px">
+        <button type="button" id="cal-prev" class="cal-nav" aria-label="Previous month">‹</button>
+        <button type="button" id="cal-next" class="cal-nav" aria-label="Next month">›</button>
+      </div>
     </div>
   </div>
 
-  <div id="cal-summary" style="position:absolute;left:24px;right:24px;top:168px;z-index:9;color:#270E0E;font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
-
-  <div style="position:absolute;left:24px;right:24px;top:212px;height:1px;background:rgba(39,14,14,.45);z-index:9"></div>
-
-  <div id="cal-dow" style="position:absolute;left:24px;right:24px;top:224px;display:grid;grid-template-columns:repeat(7,1fr);gap:6px;z-index:9;color:#270E0E"></div>
-  <div id="cal-grid" style="position:absolute;left:24px;right:24px;top:252px;display:grid;grid-template-columns:repeat(7,1fr);gap:10px;z-index:9"></div>
-
-  <div id="cal-selected" style="position:absolute;left:18px;right:18px;z-index:9;color:#270E0E;font:600 15px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;top:800px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+  <div id="cal-dow" style="position:absolute;left:24px;right:24px;top:408px;display:grid;grid-template-columns:repeat(7,1fr);gap:9px;z-index:9"></div>
+  <div id="cal-grid" style="position:absolute;left:24px;right:24px;top:434px;display:grid;grid-template-columns:repeat(7,1fr);gap:9px;z-index:9"></div>
 </section>
 
 <!-- ═══════════════════════ CALCULATOR ═══════════════════════ -->

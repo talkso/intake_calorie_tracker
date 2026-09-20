@@ -83,3 +83,24 @@ body {
 
 .cal-cell { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .cal-cell:active { transform: scale(.92); }
+
+/* Bare glyphs rather than filled pills - the month block is the only thing that
+   should carry weight up there. The tap target stays 34px regardless. */
+.cal-nav {
+  width: 34px;
+  height: 34px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  color: rgba(39, 14, 14, .42);
+  font: 900 22px/1 Archivo, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.cal-nav:active { color: #270E0E !important; }
+.cal-nav.off { color: rgba(39, 14, 14, .14); pointer-events: none; }
+
+#cal-back-btn:active { opacity: .45 !important; }

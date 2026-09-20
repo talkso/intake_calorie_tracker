@@ -371,12 +371,21 @@ function monthStart(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 function renderCalendar() {
   const m = ui.calMonth || (ui.calMonth = monthStart(dayAt(ui.day)));
   $('cal-month').textContent = m.toLocaleDateString('en-US', { month: 'long' }).toUpperCase();
+  $('cal-year').textContent = m.getFullYear();
+
+  // The masthead reads the selected day, not the month being paged through.
+  const sel = dayAt(ui.day);
+  const selCal = dayCal(ui.day);
+  $('cal-daynum').textContent = sel.getDate();
+  $('cal-downame').textContent = sel.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+  $('cal-daycal').textContent = selCal ? nf(selCal) + ' CAL' : 'NOTHING LOGGED';
 
   const dow = $('cal-dow');
   clear(dow);
   for (const l of ['S', 'M', 'T', 'W', 'T', 'F', 'S']) {
     dow.appendChild(el('div',
-      "text-align:center;font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;opacity:.65", l));
+      "text-align:center;color:rgba(39,14,14,.42);font:600 9px/1 'IBM Plex Mono',monospace;" +
+      'letter-spacing:.1em', l));
   }
 
   const grid = $('cal-grid');
@@ -385,22 +394,22 @@ function renderCalendar() {
   const days = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
   for (let i = 0; i < pad; i++) grid.appendChild(el('div', 'aspect-ratio:1'));
 
-  let loggedDays = 0, total = 0;
   for (let n = 1; n <= days; n++) {
     const date = new Date(m.getFullYear(), m.getMonth(), n);
     const bucket = dayIndex.get(dayKey(date));
     const back = daysBack(date);
     const future = back === null;
     const selected = !future && back === ui.day;
-    if (bucket) { loggedDays++; total += bucket.cal; }
 
+    // A logged day is a solid disc; everything else is the faint ground the
+    // reference uses, so the month reads as a pattern before it reads as dates.
     const cell = el('div',
       'aspect-ratio:1;border-radius:50%;display:flex;align-items:center;justify-content:center;' +
-      "box-sizing:border-box;font:600 13px/1 'IBM Plex Mono',monospace;transition:transform .1s;" +
+      "box-sizing:border-box;font:600 12px/1 'IBM Plex Mono',monospace;transition:transform .1s;" +
       (bucket ? 'background:#270E0E;color:#FF0000;'
-              : 'background:transparent;color:#270E0E;box-shadow:inset 0 0 0 1.5px rgba(39,14,14,.35);') +
-      (future ? 'opacity:.28;' : '') +
-      (selected ? 'outline:2.5px solid #270E0E;outline-offset:2px;' : ''), String(n));
+        : future ? 'background:rgba(39,14,14,.06);color:rgba(39,14,14,.22);'
+                 : 'background:rgba(39,14,14,.13);color:rgba(39,14,14,.62);') +
+      (selected ? 'outline:2px solid #270E0E;outline-offset:3px;' : ''), String(n));
     if (!future) {
       cell.className = 'cal-cell';
       cell.addEventListener('click', () => { ui.day = back; go('home'); });
@@ -408,22 +417,10 @@ function renderCalendar() {
     grid.appendChild(cell);
   }
 
-  $('cal-summary').textContent = m.getFullYear() + ' · ' + (loggedDays
-    ? loggedDays + (loggedDays === 1 ? ' DAY' : ' DAYS') + ' LOGGED · AVG ' +
-      nf(Math.round(total / loggedDays)) + ' CAL'
-    : 'NOTHING LOGGED');
-
-  // Weekday, day, month - the order the stats screen already uses.
-  const sel = dayAt(ui.day);
-  const selCal = dayCal(ui.day);
-  $('cal-selected').textContent =
-    sel.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() + ' ' +
-    sel.getDate() + ' ' + mon(ui.day).toUpperCase() +
-    ' · ' + (selCal ? nf(selCal) + ' cal' : 'nothing logged');
-
-  // Never page past the current month.
+  // Never page past the current month. The glyph stays put and only dims, so the
+  // pair does not go lopsided on the month you are almost always looking at.
   const now = monthStart(new Date());
-  $('cal-next').style.visibility = m >= now ? 'hidden' : 'visible';
+  $('cal-next').classList.toggle('off', m >= now);
 }
 
 function shiftMonth(delta) {
