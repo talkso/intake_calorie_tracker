@@ -1774,12 +1774,6 @@ function closeSettings() {
   sheetTimer = setTimeout(() => { if (!ui.settings) box.style.display = 'none'; }, SHEET_MS);
 }
 
-// The disc is drawn in the markup, where its geometry is written down; how long it
-// takes to come round is the one thing about it worth naming here. A shape this size
-// turning any faster would be the loudest thing on a sheet of still words.
-const DISK_MS = 12000;
-document.documentElement.style.setProperty('--disk-ms', DISK_MS + 'ms');
-
 /** Ten years back, which is further than anyone will page and short of the epoch. */
 function startFloor() {
   const d = monthStart(new Date());

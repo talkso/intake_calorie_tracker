@@ -209,33 +209,6 @@ input.set-val {
 }
 input.set-val:focus { color: #FF0000; }
 
-/* Nothing else on the sheet moves, so this turns slowly enough to be furniture rather
-   than something asking to be looked at. */
-@keyframes set-disk-spin { to { transform: rotate(360deg); } }
-
-#set-disk-spin {
-  animation: set-disk-spin var(--disk-ms, 12000ms) linear infinite;
-  will-change: transform;
-}
-
-/* A straight cut across the band, in the sheet's own ground. Longer than the band is
-   wide so it always crosses the whole of it, and clipped back to the band's circle by
-   the layer it sits in. Where it crosses the hole it is ground on ground, and so is
-   not there at all. */
-.disk-cut {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 420px;
-  height: 11px;
-  margin: -5.5px 0 0 -210px;
-  background: #C0C3B0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  #set-disk-spin { animation: none; }
-}
-
 .set-act { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .set-act:active { color: #FF0000; }
 
