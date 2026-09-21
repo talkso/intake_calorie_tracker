@@ -198,17 +198,32 @@ input.set-val:focus { color: #FF0000; }
 .set-act { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .set-act:active { color: #FF0000; }
 
-/* A word waiting on a second tap shows its own window running out, the way an armed
-   tile does: it holds the accent, then hands the colour back over the last stretch. */
-@keyframes set-arm {
-  0%, 74% { color: #FF0000; }
-  100%    { color: #270E0E; }
+/* The one word on the sheet that takes something away wears the accent, so it is never
+   read as just another item in the list. It presses the other way round, into the dark. */
+#set-delete { color: #FF0000; }
+#set-delete:active { color: #270E0E; }
+
+/* ── are you sure ──
+   Over everything, with the screen behind it put out. Both of the things it asks about
+   are one tap from a word that does something else, so neither is asked on the sheet. */
+#ask-scrim { opacity: 0; transition: opacity var(--ask-ms, 180ms) linear; }
+
+#ask-panel {
+  opacity: 0;
+  transform: translateY(-50%) scale(.94);
+  transition: opacity var(--ask-ms, 180ms) ease-out,
+              transform var(--ask-ms, 180ms) cubic-bezier(.22, .61, .36, 1);
 }
 
-.set-val.armed { animation: set-arm var(--set-arm-ms, 3500ms) linear forwards; }
+#ask.open #ask-scrim { opacity: 1; }
+#ask.open #ask-panel { opacity: 1; transform: translateY(-50%) scale(1); }
+
+.ask-btn { -webkit-tap-highlight-color: transparent; }
+.ask-btn:active { box-shadow: inset 0 0 0 2.5px #270E0E, inset 0 0 0 54px #270E0E; color: #FF0000; }
+.ask-go:active { background: #3A1513; }
 
 @media (prefers-reduced-motion: reduce) {
-  .set-val.armed { animation: none; color: #FF0000; }
+  #ask-scrim, #ask-panel { transition: none; }
 }
 
 .dot-btn { cursor: pointer; }

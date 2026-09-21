@@ -259,17 +259,35 @@
         <div id="set-start" class="set-val">SEPT 2026</div>
       </div>
 
-      <!-- The two that cannot be taken back ask first: the word becomes the question,
-           and the caption above says what is about to happen to everything logged. -->
+      <!-- The two that cannot be taken back ask first, in a panel of their own: a word
+           in a list is one tap from the word above it, and these two cannot be a slip. -->
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:11px">
         <div id="set-data-cap" class="set-cap">DATA</div>
         <div id="set-export" class="set-val set-act">EXPORT</div>
         <div id="set-import" class="set-val set-act">IMPORT</div>
-        <div id="set-erase" class="set-val set-act">ERASE</div>
+        <div id="set-delete" class="set-val set-act">DELETE</div>
       </div>
     </div>
 
     <input type="file" id="set-file" accept="application/json,.json" style="display:none" aria-hidden="true" tabindex="-1">
+  </div>
+</div>
+
+<!-- Asked in the middle of the screen, over everything, with the screen behind it put
+     out: the two answers are the only things on it, and they are nowhere near the word
+     that was tapped to get here. -->
+<div id="ask" style="position:absolute;inset:0;z-index:50;display:none" role="dialog" aria-modal="true" aria-labelledby="ask-text">
+  <div id="ask-scrim" style="position:absolute;inset:0;background:rgba(39,14,14,.55)"></div>
+
+  <div id="ask-panel" style="position:absolute;left:24px;right:24px;top:50%;background:#FF0000;border-radius:16px;padding:26px 24px 24px;box-sizing:border-box">
+    <div id="ask-text" style="color:#270E0E;font:900 27px/1.06 Archivo,sans-serif;letter-spacing:-.03em">THIS WILL DELETE ALL STORED DATA.</div>
+    <!-- Solid rather than faded: dark on red at any less than full strength goes muddy
+         long before it goes quiet, which is what the small size is already for. -->
+    <div id="ask-note" style="margin-top:13px;color:#270E0E;font:600 9.5px/1.4 'IBM Plex Mono',monospace;letter-spacing:.16em">IT CANNOT BE UNDONE</div>
+    <div style="margin-top:28px;display:flex;gap:10px">
+      <button type="button" id="ask-no" class="ask-btn" style="flex:1;height:54px;border-radius:12px;border:0;box-shadow:inset 0 0 0 2.5px #270E0E;background:transparent;color:#270E0E;font:600 12px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;cursor:pointer;padding:0">CANCEL</button>
+      <button type="button" id="ask-yes" class="ask-btn ask-go" style="flex:1;height:54px;border-radius:12px;border:0;background:#270E0E;color:#FF0000;font:600 12px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;cursor:pointer;padding:0">DELETE</button>
+    </div>
   </div>
 </div>
 

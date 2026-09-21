@@ -1306,7 +1306,6 @@ function openSettings() {
   ui.settings = true;
   clearTimeout(sheetTimer);
   clearTimeout(flashTimer);
-  disarmSetting();
   setNote = null;
   const box = $('settings');
   box.style.display = 'block';
@@ -1317,6 +1316,7 @@ function openSettings() {
 
 function closeSettings() {
   if (!ui.settings) return;
+  closeAsk();
   commitGoal();
   ui.settings = false;
   const box = $('settings');
@@ -1364,37 +1364,50 @@ function commitGoal() {
 }
 
 // ── asking first ──
-// EXPORT can be done again; the other two cannot be taken back, so each wants a second
-// tap. The window shuts on its own and the word hands its colour back as it goes, so a
-// word left asking is never stale - what it says is always what a second tap would do.
-const SET_WORDS = { 'set-export': 'EXPORT', 'set-import': 'IMPORT', 'set-erase': 'ERASE' };
-const ASK_WORDS = { 'set-import': 'REPLACE ALL?', 'set-erase': 'ERASE ALL?' };
-const ASK_CAPS = {
-  'set-import': 'THIS REPLACES EVERYTHING LOGGED',
-  'set-erase': 'THIS DELETES EVERYTHING LOGGED'
+// EXPORT can be done again. The other two cannot be taken back, and a word in a list is
+// one tap away from the word above it, so neither goes ahead on the strength of a tap
+// that landed on the sheet - they are asked in a panel of their own, over everything.
+const SET_WORDS = { 'set-export': 'EXPORT', 'set-import': 'IMPORT', 'set-delete': 'DELETE' };
+const ASK_MS = 180;
+const ASKS = {
+  'set-delete': {
+    text: 'THIS WILL DELETE ALL STORED DATA.',
+    note: 'IT CANNOT BE UNDONE',
+    yes: 'DELETE'
+  },
+  'set-import': {
+    text: 'THIS WILL REPLACE ALL STORED DATA.',
+    note: 'WHATEVER IS IN THE FILE TAKES ITS PLACE',
+    yes: 'REPLACE'
+  }
 };
-const SET_ARM_MS = 3500;     // long enough to read a question, short enough to forget
-document.documentElement.style.setProperty('--set-arm-ms', SET_ARM_MS + 'ms');
+document.documentElement.style.setProperty('--ask-ms', ASK_MS + 'ms');
 
-let setArm = null;           // the word waiting on a second tap
+let askWhich = null;         // which word is being asked about, if any
+let askTimer = 0;
 let setNote = null;          // { id, text } - what a word did, said briefly in its place
-let armTimer2 = 0;
 
-function armSetting(id) {
-  clearTimeout(armTimer2);
-  setArm = id;
-  setNote = null;
-  renderSettings();
-  armTimer2 = setTimeout(() => {
-    if (setArm !== id) return;
-    setArm = null;
-    renderSettings();
-  }, SET_ARM_MS);
+function openAsk(which) {
+  const cfg = ASKS[which];
+  if (!cfg) return;
+  clearTimeout(askTimer);
+  askWhich = which;
+  $('ask-text').textContent = cfg.text;
+  $('ask-note').textContent = cfg.note;
+  $('ask-yes').textContent = cfg.yes;
+  const box = $('ask');
+  box.style.display = 'block';
+  void box.offsetWidth;      // laid out shut first, so it comes up rather than appearing
+  box.classList.add('open');
 }
 
-function disarmSetting() {
-  clearTimeout(armTimer2);
-  setArm = null;
+function closeAsk() {
+  if (!askWhich) return;
+  askWhich = null;
+  const box = $('ask');
+  box.classList.remove('open');
+  clearTimeout(askTimer);
+  askTimer = setTimeout(() => { if (!askWhich) box.style.display = 'none'; }, ASK_MS);
 }
 
 function flash(id, text) {
@@ -1441,7 +1454,7 @@ function importData(text) {
 
 /** Everything held, thrown away. The maximum is a setting rather than something logged,
     so it stays - but the figures it used to be went with the days they applied to. */
-function eraseData() {
+function deleteData() {
   store.entries = [];
   store.open = [];
   store.goals = [{ t: 0, v: store.goal }];
@@ -1471,12 +1484,9 @@ function settle() {
 
 function renderSettings() {
   for (const id of Object.keys(SET_WORDS)) {
-    const asking = setArm === id;
     const note = setNote && setNote.id === id ? setNote.text : null;
-    $(id).textContent = note || (asking ? ASK_WORDS[id] : SET_WORDS[id]);
-    $(id).classList.toggle('armed', asking);
+    $(id).textContent = note || SET_WORDS[id];
   }
-  $('set-data-cap').textContent = setArm ? ASK_CAPS[setArm] : 'DATA';
 
   const input = $('set-goal');
   if (document.activeElement !== input) input.value = nf(goal());
@@ -1522,20 +1532,23 @@ $('set-export').addEventListener('click', exportData);
 
 // Asked before the picker opens, not after a file has been chosen: by then the answer
 // would be about a file, when the question is about everything already logged.
-$('set-import').addEventListener('click', () => {
-  if (setArm !== 'set-import') return armSetting('set-import');
-  disarmSetting();
-  renderSettings();
-  $('set-file').value = '';        // so choosing the same file twice still counts
-  $('set-file').click();
-});
+$('set-import').addEventListener('click', () => openAsk('set-import'));
+$('set-delete').addEventListener('click', () => openAsk('set-delete'));
 
-$('set-erase').addEventListener('click', () => {
-  if (setArm !== 'set-erase') return armSetting('set-erase');
-  disarmSetting();
-  eraseData();
-  flash('set-erase', 'ERASED');
-  render();
+$('ask-no').addEventListener('click', closeAsk);
+$('ask-scrim').addEventListener('click', closeAsk);
+
+$('ask-yes').addEventListener('click', () => {
+  const which = askWhich;
+  closeAsk();
+  if (which === 'set-delete') {
+    deleteData();
+    flash('set-delete', 'DELETED');
+    render();
+  } else if (which === 'set-import') {
+    $('set-file').value = '';      // so choosing the same file twice still counts
+    $('set-file').click();         // still inside the tap, which is what opens a picker
+  }
 });
 
 $('set-file').addEventListener('change', e => {
@@ -1559,12 +1572,6 @@ let sheetFrom = null, sheetMoved = false;
 
 sheet.addEventListener('pointerdown', e => {
   sheetMoved = false;
-  // Anything else touched is an answer of no: the question goes away rather than
-  // sitting there waiting to be answered by a tap meant for something else.
-  if (setArm && !e.target.closest('#' + setArm)) {
-    disarmSetting();
-    renderSettings();
-  }
   // The figure is typed into the screen itself, so the field keeps its own gestures.
   sheetFrom = e.target.closest('#set-goal')
     ? null : { y: e.clientY, t: e.timeStamp, dy: 0, vel: 0 };
@@ -1861,7 +1868,9 @@ window.addEventListener('keydown', e => {
   // Digits typed into the maximum are not digits typed into the calculator behind it.
   if (ui.settings) {
     if (e.key !== 'Escape') return;
-    closeSettings();
+    // The question first, since it is the thing on top and the thing being asked.
+    if (askWhich) closeAsk();
+    else closeSettings();
     e.preventDefault();
     return;
   }
