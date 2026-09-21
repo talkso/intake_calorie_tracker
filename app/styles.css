@@ -46,6 +46,34 @@ body {
 .screen { display: none; }
 .screen.active { display: block; }
 
+/* ── sliding between screens ──
+   For the length of a slide both screens are on stage at once, laid over each other
+   and moved apart by transform. The ported markup sets position:relative inline, so
+   that has to be overridden outright; and the stage has to clip, or the screen on its
+   way out would be seen crossing the letterbox. */
+#stage.sliding { overflow: hidden; }
+
+#stage.sliding .screen {
+  position: absolute !important;
+  left: 0;
+  top: 0;
+  width: 402px;
+  will-change: transform;
+}
+
+/* Kept on show after losing .active, but no longer answering to a finger. */
+.screen.leaving { display: block; pointer-events: none; }
+
+@keyframes screen-from-right { from { transform: translateX(100%); } }
+@keyframes screen-from-left  { from { transform: translateX(-100%); } }
+@keyframes screen-to-left    { to   { transform: translateX(-100%); } }
+@keyframes screen-to-right   { to   { transform: translateX(100%); } }
+
+.screen.from-right { animation: screen-from-right var(--slide-ms, 260ms) cubic-bezier(.22,.61,.36,1) both; }
+.screen.from-left  { animation: screen-from-left  var(--slide-ms, 260ms) cubic-bezier(.22,.61,.36,1) both; }
+.screen.to-left    { animation: screen-to-left    var(--slide-ms, 260ms) cubic-bezier(.22,.61,.36,1) both; }
+.screen.to-right   { animation: screen-to-right   var(--slide-ms, 260ms) cubic-bezier(.22,.61,.36,1) both; }
+
 /* Prevents a flash of unstyled canvas before the first layout pass sizes the stage. */
 #stage:not(.ready) { visibility: hidden; }
 

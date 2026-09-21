@@ -333,7 +333,40 @@ function paintBackdrop() {
 }
 
 // ── routing ──────────────────────────────────────────────────────────────────
+// ── sliding between screens ──────────────────────────────────────────────────
+// Where each screen sits relative to Home, which is all the direction of a slide is:
+// a screen further right arrives from the right. It matches the swipes by
+// construction, so reaching a screen by button looks the same as reaching it by hand.
+const SCREENS = ['home', 'calc', 'stats', 'calendar'];
+const SCREEN_AT = { stats: -1, home: 0, calc: 1, calendar: 1 };
+const SLIDE_MS = 260;
+const stillMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+let slideTimer = 0;
+document.documentElement.style.setProperty('--slide-ms', SLIDE_MS + 'ms');
+
+function endSlide() {
+  clearTimeout(slideTimer);
+  stage.classList.remove('sliding');
+  for (const s of SCREENS) {
+    $('screen-' + s).classList.remove('leaving', 'from-left', 'from-right', 'to-left', 'to-right');
+  }
+}
+
+function startSlide(from, to) {
+  endSlide();                                  // whatever was mid-flight gives way
+  if (stillMotion && stillMotion.matches) return;
+  const step = SCREEN_AT[to] - SCREEN_AT[from];
+  if (!step) return;                           // side by side: nothing to slide past
+  const out = $('screen-' + from);
+  const inn = $('screen-' + to);
+  out.classList.add('leaving', step > 0 ? 'to-left' : 'to-right');
+  inn.classList.add(step > 0 ? 'from-right' : 'from-left');
+  stage.classList.add('sliding');
+  slideTimer = setTimeout(endSlide, SLIDE_MS);
+}
+
 function go(screen) {
+  const from = ui.screen;
   // The calculator always opens on the keypad, never on whatever view was left behind.
   if (screen === 'calc') {
     ui.view = 'calc';
@@ -354,11 +387,14 @@ function go(screen) {
     ui.scrub = 0; ui.selDay = null; ui.mealSelDay = null;
   }
   ui.screen = screen;
-  for (const s of ['home', 'calc', 'stats', 'calendar']) {
+  for (const s of SCREENS) {
     $('screen-' + s).classList.toggle('active', s === screen);
   }
-  paintBackdrop();
+  // Drawn while on show and before the slide starts: the calculator measures its own
+  // type to place the arc, and a hidden screen measures as nothing at all.
   render();
+  if (from !== screen) startSlide(from, screen);
+  paintBackdrop();
 }
 
 // ══════════════════════════ HOME ══════════════════════════
