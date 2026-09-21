@@ -244,15 +244,31 @@
     <div style="position:absolute;left:50%;top:15px;margin-left:-22px;width:44px;height:4px;border-radius:2px;background:rgba(39,14,14,.22)"></div>
     <div style="position:absolute;left:0;right:0;top:46px;text-align:center;color:#270E0E;font:600 17px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;pointer-events:none">settings</div>
 
-    <!-- A disc that turns for as long as the sheet is up. The bites out of its rim are
-         what make the turning visible on a shape that is otherwise the same from every
-         angle; the circle at its centre is outside the turning part and stays still.
-         The bites are placed from the script, where the geometry is written down once. -->
-    <div id="set-disk" style="position:absolute;left:26px;top:116px;width:94px;height:94px;pointer-events:none" aria-hidden="true">
-      <div id="set-disk-spin" style="position:absolute;inset:0;border-radius:50%;background:#270E0E"></div>
-      <div style="position:absolute;left:31px;top:31px;width:32px;height:32px;border-radius:50%;background:#C0C3B0;display:flex;align-items:center;justify-content:center">
-        <div style="width:8px;height:8px;border-radius:50%;background:#270E0E"></div>
+    <!-- The disc, measured off the design: a red bullseye running off the left edge,
+         its band thicker on one side than the other because the hole through it sits
+         off centre. Every figure below is in sheet pixels, read from the design and
+         checked against it at the left edge, where the band shows twice:
+
+           band      centre  29.2, 268.8   radius 204.7
+           its hole  centre   5.4, 277.5   radius 137.3
+           middle    centre  18.7, 288.1   radius  54.4
+           cuts      -35.5deg, 54.8 from the band's centre; 49.4deg, 35.8; both 11 thick
+
+         The cuts are the part that turns. The band's outline is a circle and says
+         nothing about which way round it is, so turning the band itself would show as
+         nothing but that off-centre hole swinging around the still circle in the
+         middle, opening and closing the gap between them as it went. -->
+    <div id="set-disk" style="position:absolute;left:-175.5px;top:64.1px;width:409.4px;height:409.4px;pointer-events:none" aria-hidden="true">
+      <div style="position:absolute;inset:0;border-radius:50%;background:#FF0000;-webkit-mask:radial-gradient(circle 137.3px at 180.9px 213.4px,rgba(0,0,0,0) 99.4%,#000 99.7%);mask:radial-gradient(circle 137.3px at 180.9px 213.4px,rgba(0,0,0,0) 99.4%,#000 99.7%)"></div>
+      <!-- Clipped to the band's own circle, which is centred on the turn and so does
+           not move with it. -->
+      <div id="set-disk-spin" style="position:absolute;inset:0;border-radius:50%;overflow:hidden">
+        <div class="disk-cut" style="transform:rotate(-35.5deg) translateY(-54.8px)"></div>
+        <div class="disk-cut" style="transform:rotate(49.4deg) translateY(35.8px)"></div>
       </div>
+      <!-- Outside the turning part and over the top of it, so a cut coming round behind
+           it is hidden rather than drawn across it. -->
+      <div style="position:absolute;left:139.8px;top:169.6px;width:108.8px;height:108.8px;border-radius:50%;background:#FF0000"></div>
     </div>
 
     <div style="position:absolute;left:24px;right:24px;bottom:76px;display:flex;flex-direction:column;align-items:flex-end;gap:28px;text-align:right">

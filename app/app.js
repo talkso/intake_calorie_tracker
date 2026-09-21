@@ -1774,29 +1774,11 @@ function closeSettings() {
   sheetTimer = setTimeout(() => { if (!ui.settings) box.style.display = 'none'; }, SHEET_MS);
 }
 
-// ── the disc ──
-// Each bite is a circle of the sheet's own ground sitting astride the rim, so what is
-// left of the disc between them is the scalloped edge. Placed by turning each one out
-// from the middle rather than by working out where it lands, which is the same thing
-// said in one line instead of two.
-const DISK_BOX = 94;
-const DISK_R = 47;           // the rim the bites straddle
-const DISK_BITE = 18;
-const DISK_BITES = 10;
-const DISK_MS = 9000;        // one turn
+// The disc is drawn in the markup, where its geometry is written down; how long it
+// takes to come round is the one thing about it worth naming here. A shape this size
+// turning any faster would be the loudest thing on a sheet of still words.
+const DISK_MS = 12000;
 document.documentElement.style.setProperty('--disk-ms', DISK_MS + 'ms');
-
-function buildDisk() {
-  const host = $('set-disk-spin');
-  const off = ((DISK_BOX - DISK_BITE) / 2).toFixed(1);
-  for (let i = 0; i < DISK_BITES; i++) {
-    host.appendChild(el('div',
-      'position:absolute;left:' + off + 'px;top:' + off + 'px;width:' + DISK_BITE +
-      'px;height:' + DISK_BITE + 'px;border-radius:50%;background:#C0C3B0;' +
-      'transform:rotate(' + ((i * 360) / DISK_BITES).toFixed(2) +
-      'deg) translateY(-' + DISK_R + 'px)'));
-  }
-}
 
 /** Ten years back, which is further than anyone will page and short of the epoch. */
 function startFloor() {
@@ -2389,7 +2371,6 @@ closeStaleMeals();
 try { if (localStorage.getItem(WAS_KEY) != null) save(); } catch (e) { /* nothing to move */ }
 askToPersist();
 ensureStart();
-buildDisk();
 layout();
 go('home');
 
