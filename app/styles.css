@@ -38,6 +38,9 @@ body {
   height: 874px;
   transform-origin: 0 0;
   z-index: 1;
+  /* Sideways gestures belong to the app, which is what makes a swipe between screens
+     possible; up and down is left alone so the day stack can still be scrolled. */
+  touch-action: pan-y;
 }
 
 .screen { display: none; }

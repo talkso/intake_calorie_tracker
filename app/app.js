@@ -1315,6 +1315,66 @@ const histSlider = makeSlider($('screen-calc'), {
   }
 });
 
+// ── swiping between screens ──────────────────────────────────────────────────
+// Where a sideways drag leads, per screen. Anything that already drags something of
+// its own keeps the gesture: the stats window and the history row are dragged, not
+// swiped, so a swipe has to begin outside them.
+const SWIPE_TO = {
+  home: { right: 'stats' },
+  stats: { left: 'home' },
+  calc: { right: 'home' },
+  calendar: { right: 'home' }
+};
+// A zone only keeps the gesture while it has somewhere to go. A history row short
+// enough to sit still would otherwise be a dead strip across half the screen.
+const SWIPE_KEEP = {
+  stats: () => SCRUB_ZONE,
+  calc: () => (histOverflow() > 0 ? '#calc-history' : null)
+};
+const SWIPE_MIN = 60;        // canvas px of travel before a drag counts as a swipe
+const SWIPE_SLOPE = 1.5;     // and how much flatter than tall it has to be
+
+let swipeFrom = null;
+let swiped = false;
+
+stage.addEventListener('pointerdown', e => {
+  swiped = false;
+  swipeFrom = null;
+  if (!SWIPE_TO[ui.screen] || ui.picker) return;   // the open day stack owns the gesture
+  const keep = SWIPE_KEEP[ui.screen] && SWIPE_KEEP[ui.screen]();
+  if (keep && e.target.closest(keep)) return;
+  swipeFrom = { x: e.clientX, y: e.clientY, dx: 0, dy: 0 };
+});
+
+stage.addEventListener('pointermove', e => {
+  if (!swipeFrom) return;
+  swipeFrom.dx = (e.clientX - swipeFrom.x) / (scale || 1);
+  swipeFrom.dy = (e.clientY - swipeFrom.y) / (scale || 1);
+});
+
+// Decided on release rather than partway through, so a gesture can still be thought
+// better of, and a long press that wanders never navigates on its own.
+stage.addEventListener('pointerup', () => {
+  const s = swipeFrom;
+  swipeFrom = null;
+  if (!s) return;
+  if (Math.abs(s.dx) < SWIPE_MIN || Math.abs(s.dx) < Math.abs(s.dy) * SWIPE_SLOPE) return;
+  const to = SWIPE_TO[ui.screen][s.dx > 0 ? 'right' : 'left'];
+  if (!to) return;
+  swiped = true;
+  go(to);
+});
+stage.addEventListener('pointercancel', () => { swipeFrom = null; });
+
+// The screen has changed under the finger, so whatever is now beneath it is not
+// something the person meant to press.
+stage.addEventListener('click', e => {
+  if (!swiped) return;
+  swiped = false;
+  e.stopPropagation();
+  e.preventDefault();
+}, true);
+
 // hardware keyboard, as the prototype supported
 window.addEventListener('keydown', e => {
   if (ui.screen !== 'calc') return;
