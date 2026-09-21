@@ -239,21 +239,24 @@
 
   <div id="settings-sheet" style="position:absolute;left:0;right:0;top:96px;bottom:0;background:#C0C3B0;border-radius:26px 26px 0 0;overflow:hidden;font-family:Archivo,sans-serif">
     <div style="position:absolute;left:50%;top:15px;margin-left:-22px;width:44px;height:4px;border-radius:2px;background:rgba(39,14,14,.22)"></div>
+    <div style="position:absolute;left:0;right:0;top:46px;text-align:center;color:#270E0E;font:600 17px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;pointer-events:none">settings</div>
 
-    <div style="position:absolute;left:24px;right:24px;bottom:122px;display:flex;flex-direction:column;align-items:flex-end;gap:34px;text-align:right">
+    <div style="position:absolute;left:24px;right:24px;bottom:76px;display:flex;flex-direction:column;align-items:flex-end;gap:34px;text-align:right">
 
       <div style="align-self:stretch;display:flex;flex-direction:column;align-items:flex-end;gap:11px">
         <div class="set-cap">MAXIMUM CALORIES</div>
         <input id="set-goal" class="set-val" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-label="Maximum calories" value="1,900">
       </div>
 
-      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:11px">
+      <!-- The pair sits on its own line above the month rather than flanking it, so the
+           month reads as one word against the same right edge as everything else. -->
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
         <div class="set-cap">LOG STARTS</div>
-        <div style="display:flex;align-items:center;gap:6px;margin-right:-8px">
+        <div style="display:flex;align-items:center;gap:2px;margin-right:-9px">
           <button type="button" id="set-start-prev" class="cal-nav" aria-label="Earlier start month">‹</button>
-          <div id="set-start" class="set-val">SEPT 2026</div>
           <button type="button" id="set-start-next" class="cal-nav" aria-label="Later start month">›</button>
         </div>
+        <div id="set-start" class="set-val">SEPT 2026</div>
       </div>
 
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:11px">
@@ -263,7 +266,6 @@
       </div>
     </div>
 
-    <button type="button" id="set-close" class="btn-close" aria-label="Close settings" style="position:absolute;right:24px;bottom:38px;width:46px;height:46px;border-radius:50%;border:0;background:#FF0000;color:#270E0E;font:900 17px/1 Archivo,sans-serif;-webkit-text-stroke:1px currentColor;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer">✕</button>
     <input type="file" id="set-file" accept="application/json,.json" style="display:none" aria-hidden="true" tabindex="-1">
   </div>
 </div>

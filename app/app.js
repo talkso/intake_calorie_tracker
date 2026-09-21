@@ -1453,7 +1453,8 @@ $('cal-next').addEventListener('click', () => shiftMonth(1));
 for (const id of ['home-settings-btn', 'cal-settings-btn', 'calc-settings-btn', 'stats-settings-btn']) {
   $(id).addEventListener('click', openSettings);
 }
-$('set-close').addEventListener('click', closeSettings);
+// No button to close it: the sheet is pushed back down, or the screen it came up over
+// is tapped. Both are the same gesture read two ways, and neither is a control.
 $('settings-scrim').addEventListener('click', closeSettings);
 $('set-start-prev').addEventListener('click', () => shiftStart(-1));
 $('set-start-next').addEventListener('click', () => shiftStart(1));
