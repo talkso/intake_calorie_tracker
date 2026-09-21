@@ -29,6 +29,7 @@ const GOAL_AT = 0.86;        // goal rule pinned at 86% of chart height in every
 const CHART_TOP = 236;
 const CHART_H = 248;
 const RULE_YS = [198, 234];
+const RULE_SEP = 8;          // clear ground left between the red and the grey it displaces
 
 // Both dials are pinned at a fixed point on the band and grow counter-clockwise, so the
 // round cap rides the leading edge rather than the tail. At the sweeps the prototype drew
@@ -1192,8 +1193,12 @@ function renderGoalRule(end, cfg, geom, total, g) {
     // laid on the same track, the break travels with the stretch it belongs to.
     const y = CHART_H * (1 - pctOf(held) / 100) - 2;
     if (RULE_YS.some(r => y < r + 1 - CHART_TOP && y + 2 > r - CHART_TOP)) {
+      // Taken back past the red at both ends, so the two never come to a point where
+      // they touch: the ground between them is what says where one stops and the other
+      // starts, which a dash and a rule meeting end to end cannot.
       track.appendChild(el('div',
-        'position:absolute;left:' + left + 'px;width:' + wide + 'px;top:' +
+        'position:absolute;left:' + (from * geom.pitch - RULE_SEP).toFixed(2) +
+        'px;width:' + ((j - from) * geom.pitch + 2 * RULE_SEP).toFixed(2) + 'px;top:' +
         y.toFixed(2) + 'px;height:2px;background:#C0C3B0'));
     }
     track.appendChild(el('div',
