@@ -1,10 +1,10 @@
 {
-  "name": "countcal",
-  "short_name": "countcal",
+  "name": "intake",
+  "short_name": "intake",
   "description": "Calorie intake tracker — dial, calculator and stats.",
   "start_url": "./index.html",
   "scope": "./",
-  "id": "/countcal/",
+  "id": "/intake/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#FF0000",

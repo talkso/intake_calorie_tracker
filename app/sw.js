@@ -1,7 +1,7 @@
-/* Offline shell for countcal. The app holds no remote data, so every asset it needs is
+/* Offline shell for intake. The app holds no remote data, so every asset it needs is
    precached and served cache-first; a background revalidate picks up new deploys. */
 
-const VERSION = 'countcal-v1';
+const VERSION = 'intake-v1';
 const SHELL = [
   './',
   './index.html',

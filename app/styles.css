@@ -1,4 +1,4 @@
-/* countcal — app shell.
+/* intake — app shell.
    The three screens are a verbatim port of the Claude Design prototype and carry their
    own inline styles. Everything here is either shell plumbing (scaling, routing) or a
    :hover/:active rule, which an inline style attribute cannot express. The prototype

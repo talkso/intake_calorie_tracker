@@ -1,4 +1,4 @@
-/* countcal — implementation of the Claude Design prototype (Calorie Home.dc.html).
+/* intake — implementation of the Claude Design prototype (Calorie Home.dc.html).
    Layout and colour come from the prototype verbatim; this file supplies the state the
    prototype faked with props and a seeded hash, backed by real logged entries. */
 
@@ -64,13 +64,20 @@ const SEG_GEO = {
 };
 
 // ── persistent state ─────────────────────────────────────────────────────────
-const STORE_KEY = 'countcal.v1';
+const STORE_KEY = 'intake.v1';
+// What the app was called when the first day was logged into it. A name is the app's
+// business and none of the log's, so anything written under the old one is picked up
+// and carried over the first time this one is written.
+const WAS_KEY = 'countcal.v1';
 
 const store = load();
 
 function load() {
   let raw;
-  try { raw = localStorage.getItem(STORE_KEY); } catch (e) { return normalize(null); }
+  try {
+    raw = localStorage.getItem(STORE_KEY);
+    if (raw == null) raw = localStorage.getItem(WAS_KEY);
+  } catch (e) { return normalize(null); }
   let parsed = null;
   try { parsed = JSON.parse(raw); } catch (e) { /* unreadable is the same as absent */ }
   return normalize(parsed);
@@ -121,6 +128,8 @@ let saveBroken = false;
 function save() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify(store));
+    // Only once it is safely under the new name, and never before.
+    if (localStorage.getItem(WAS_KEY) != null) localStorage.removeItem(WAS_KEY);
     setSaveBroken(false);
   } catch (e) {
     setSaveBroken(true);
@@ -1180,13 +1189,22 @@ function renderGoalRule(end, cfg, geom, total, g) {
   const pctOf = v => clamp((GOAL_AT * v) / g, 0, 1) * 100;
   const dayOf = j => end + (cfg.n - 1 + OVERSCAN - j) * cfg.step;
 
+  // Where one stretch hands over to the next: the middle of the gap between their two
+  // slots, which is where the riser stands. Both stretches run to it and stop, so the
+  // step is the end of one line and the start of the other, not something that crosses
+  // a dash halfway and leaves a stub of it on the far side. The track's own ends are
+  // not handovers and simply run out.
+  const edge = k => (k <= 0 ? 0
+    : k >= total ? total * geom.pitch
+    : k * geom.pitch - cfg.gap / 2);
+
   let from = 0;
   let held = goalOn(dayOf(0));
   for (let j = 1; j <= total; j++) {
     const v = j < total ? goalOn(dayOf(j)) : null;
     if (v === held) continue;
-    const left = (from * geom.pitch).toFixed(2);
-    const wide = ((j - from) * geom.pitch).toFixed(2);
+    const left = edge(from).toFixed(2);
+    const wide = (edge(j) - edge(from)).toFixed(2);
     // A maximum far enough above the one in force now puts its rule level with one of
     // the grey lines above the chart. Two lines at the same height read as one line
     // broken up, so the grey gives way for the length of the red and picks up after:
@@ -1197,8 +1215,8 @@ function renderGoalRule(end, cfg, geom, total, g) {
       // they touch: the ground between them is what says where one stops and the other
       // starts, which a dash and a rule meeting end to end cannot.
       track.appendChild(el('div',
-        'position:absolute;left:' + (from * geom.pitch - RULE_SEP).toFixed(2) +
-        'px;width:' + ((j - from) * geom.pitch + 2 * RULE_SEP).toFixed(2) + 'px;top:' +
+        'position:absolute;left:' + (edge(from) - RULE_SEP).toFixed(2) +
+        'px;width:' + (edge(j) - edge(from) + 2 * RULE_SEP).toFixed(2) + 'px;top:' +
         y.toFixed(2) + 'px;height:2px;background:#C0C3B0'));
     }
     track.appendChild(el('div',
@@ -1209,7 +1227,7 @@ function renderGoalRule(end, cfg, geom, total, g) {
     // design pins at the left edge can only speak for the stretch it sits on.
     if (from > 0) {
       track.appendChild(el('div',
-        'position:absolute;left:' + (from * geom.pitch + 4).toFixed(2) + 'px;bottom:' +
+        'position:absolute;left:' + (edge(from) + 4).toFixed(2) + 'px;bottom:' +
         pctOf(held).toFixed(2) + '%;transform:translateY(50%);background:#C0C3B0;' +
         "padding:3px 6px 3px 4px;font:600 9px/1 'IBM Plex Mono',monospace;" +
         'letter-spacing:.1em;color:#FF0000;white-space:nowrap', nf(held)));
@@ -1217,7 +1235,7 @@ function renderGoalRule(end, cfg, geom, total, g) {
     if (v != null) {
       const a = pctOf(held), b = pctOf(v);
       track.appendChild(el('div',
-        'position:absolute;left:' + (j * geom.pitch - cfg.gap / 2 - 1).toFixed(2) +
+        'position:absolute;left:' + (edge(j) - 1).toFixed(2) +
         'px;width:2px;bottom:' + Math.min(a, b).toFixed(2) + '%;height:' +
         Math.abs(a - b).toFixed(2) + '%;background:#FF0000'));
     }
@@ -1488,7 +1506,7 @@ function flash(id, text) {
 
 function exportData() {
   const d = new Date();
-  const name = 'countcal-' + d.getFullYear() + '-' +
+  const name = 'intake-' + d.getFullYear() + '-' +
     String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + '.json';
   const url = URL.createObjectURL(
     new Blob([JSON.stringify(store, null, 2)], { type: 'application/json' }));
@@ -1971,6 +1989,9 @@ setInterval(() => {
 
 reindex();
 probeStorage();
+// A log still filed under the old name is moved over at once, rather than waiting for
+// the next thing logged to do it.
+try { if (localStorage.getItem(WAS_KEY) != null) save(); } catch (e) { /* nothing to move */ }
 askToPersist();
 ensureStart();
 layout();
