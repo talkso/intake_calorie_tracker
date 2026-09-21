@@ -178,6 +178,7 @@ const ui = {
   picker: false,
   settings: false,           // the sheet is up, over whatever screen is behind it
   calMonth: null,            // first of the month the calendar is showing
+  animHome: false,           // the day's total just changed, so the dial has a way to go
   display: '0', pending: null, op: null, fresh: true,
   view: 'calc', selTile: null,
   showTotal: false,          // the dial reads the meal so far, not what was typed
@@ -306,21 +307,47 @@ function addIngredient(v) {
 }
 
 /** The whole meal goes through at once, its ingredients sharing the id of the first. */
-function commitMeal() {
-  const items = viewOpen();
+function commitItems(items) {
   if (!items.length) return false;
   const id = items[0].t;
+  const drop = new Set(items.map(e => e.t));
   for (const it of items) store.entries.push({ v: it.v, t: it.t, m: id });
-  store.open = store.open.filter(e => items.indexOf(e) < 0);
+  store.open = store.open.filter(e => !drop.has(e.t));
   store.entries.sort((a, b) => a.t - b.t);
   save();
   reindex();
   return true;
 }
 
+function commitMeal() { return commitItems(viewOpen()); }
+
+/**
+ * A meal still open when the day turns over was eaten on the day it was started, so the
+ * turn of the day is what finishes it. Without this it would simply stop being visible:
+ * the calculator only ever shows the meal belonging to the day on show, and tomorrow is
+ * a different day. Run when the clock crosses midnight, and again on the way up, since
+ * the app is far more often closed over midnight than open across it.
+ */
+function closeStaleMeals() {
+  const today = dayKey(new Date());
+  const byDay = new Map();
+  for (const e of store.open) {
+    const k = dayKey(new Date(e.t));
+    if (k === today) continue;
+    if (!byDay.has(k)) byDay.set(k, []);
+    byDay.get(k).push(e);
+  }
+  let closed = false;
+  for (const items of byDay.values()) closed = commitItems(items) || closed;
+  return closed;
+}
+
+/** Throws away the meal being built, and only that: another day's is not this one's. */
 function cancelMeal() {
-  if (!store.open.length) return;
-  store.open = [];
+  const items = viewOpen();
+  if (!items.length) return;
+  const drop = new Set(items.map(e => e.t));
+  store.open = store.open.filter(e => !drop.has(e.t));
   save();
 }
 
@@ -492,6 +519,7 @@ function go(screen) {
   // The calculator always opens on the keypad, never on whatever view was left behind.
   if (screen === 'calc') {
     ui.view = 'calc';
+    calcJump = true;             // arriving at a figure, not watching one change
     disarmTile();
     ui.histX = 0;
     histSlider.stop();
@@ -519,20 +547,56 @@ function go(screen) {
   paintBackdrop();
 }
 
+// ── the arc, moving ──────────────────────────────────────────────────────────
+// A dial that jumps tells you where it ended up; one that travels tells you how far it
+// moved, which is the thing it is there to say. The value runs towards its target
+// rather than along a path of fixed length, so a figure typed a digit at a time
+// redirects it mid-flight instead of restarting it from wherever it had got to.
+const ARC_MS = 520;
+
+function makeEase(paint) {
+  let cur = null, target = 0, raf = 0, wait = 0, last = 0;
+
+  function frame(now) {
+    const dt = Math.min(64, now - last);
+    last = now;
+    cur += (target - cur) * (1 - Math.pow(0.001, dt / ARC_MS));
+    if (Math.abs(target - cur) < 0.05) cur = target;
+    paint(cur);
+    if (cur !== target) raf = requestAnimationFrame(frame);
+  }
+
+  const self = {
+    /** Travels there - or lands there, with nowhere to travel from, or motion turned off. */
+    to(v, jump) {
+      clearTimeout(wait);
+      cancelAnimationFrame(raf);
+      target = v;
+      if (cur === null || jump || (stillMotion && stillMotion.matches)) {
+        cur = v;
+        paint(cur);
+        return;
+      }
+      if (cur === target) return;
+      last = performance.now();
+      raf = requestAnimationFrame(frame);
+    },
+    /** Stays put for a moment first, so the screen it is on lands before it moves. */
+    hold(v, ms) {
+      clearTimeout(wait);
+      cancelAnimationFrame(raf);
+      if (cur === null) return self.to(v, true);
+      wait = setTimeout(() => self.to(v), ms);
+    },
+    at: () => cur
+  };
+  return self;
+}
+
 // ══════════════════════════ HOME ══════════════════════════
-function renderHome() {
-  const g = goal();
-  const logged = viewLogged();
-  const pct = clamp(logged / g, 0, 1);
-  const sweep = pct * 360;
-
-  $('home-left-val').textContent = String(Math.round(g - logged));
-  $('home-max').textContent = g + ' cal maximum.';
-  $('home-day').textContent = dayLabel(ui.day);
-  renderPicker();
-
+function paintHomeArc(sweep) {
+  const on = sweep > 0.05;
   const lead = HOME_ARC_ANCHOR - sweep;
-  const on = pct > 0;
   const mask = conicMask(lead, sweep);
   const cap = bandPoint(lead, BAND_R);
 
@@ -555,6 +619,31 @@ function renderHome() {
   clip.style.maskImage = layers;
   clip.style.webkitMaskComposite = 'source-over,source-over';
   clip.style.maskComposite = 'add,add';
+}
+
+const homeArc = makeEase(paintHomeArc);
+
+function renderHome() {
+  const g = goal();
+  const logged = viewLogged();
+
+  // Left of the maximum, or past it. "Left: -212" is a double negative to read through;
+  // the word carries the sign so the figure never has to.
+  $('home-left-cap').textContent = logged > g ? 'Over:' : 'Left:';
+  $('home-left-val').textContent = String(Math.abs(Math.round(g - logged)));
+  $('home-max').textContent = g + ' cal maximum.';
+  $('home-day').textContent = dayLabel(ui.day);
+  renderPicker();
+
+  const target = clamp(logged / g, 0, 1) * 360;
+  // Only a meal just committed has anywhere to travel from; every other way onto this
+  // screen is arriving at a figure, not watching one change.
+  if (ui.animHome) {
+    ui.animHome = false;
+    homeArc.hold(target, SLIDE_MS);
+  } else {
+    homeArc.to(target, true);
+  }
 }
 
 const DAY_OPT_STYLE =
@@ -783,6 +872,35 @@ function renderSegments(str) {
   }
 }
 
+// Measured once per render and held for the frames in between: the arc's edge decides
+// each piece of type's colour as it passes, and measuring on every frame would put a
+// layout in the middle of an animation.
+let calcZones = [];
+let calcJump = true;
+
+function paintCalcArc(sweep) {
+  // Each piece of type takes its colour from what ends up behind it, independently.
+  for (const i of calcZones) i.paint.style.color = sweep >= i.exit ? '#270E0E' : '#FF0000';
+
+  const on = sweep > 0.05;
+  const lead = CALC_ARC_ANCHOR - sweep;
+  const mask = conicMask(lead, sweep);
+  const cap = bandPoint(lead, BAND_R);
+
+  const fill = $('calc-arc-fill');
+  fill.style.display = on ? 'block' : 'none';
+  fill.style.webkitMask = mask;
+  fill.style.mask = mask;
+
+  // Leading cap rides the sweep; the tail cap is pinned at the anchor.
+  const capEl = $('calc-arc-cap');
+  capEl.style.display = on ? 'block' : 'none';
+  placeCap(capEl, cap);
+  $('calc-arc-tail').style.display = on ? 'block' : 'none';
+}
+
+const calcArc = makeEase(paintCalcArc);
+
 function renderCalc() {
   const g = goal();
   const logged = viewLogged();
@@ -796,10 +914,11 @@ function renderCalc() {
   renderSegments(ui.showTotal ? String(openTotal()) : ui.display);
 
   // Keep the arc's leading edge out of the type on the band. Half-covered, a word has no
-  // single readable colour; snapped clear of it, one flat colour always works.
+  // single readable colour; snapped clear of it, one flat colour always works. Only
+  // where it comes to rest, though - on the way there it crosses whatever it crosses.
   let sweep = pct * 360;
-  const intervals = coverIntervals();
-  const merged = intervals
+  calcZones = coverIntervals();
+  const merged = calcZones
     .map(i => [i.enter, i.exit])
     .sort((a, b) => a[0] - b[0])
     .reduce((acc, cur) => {
@@ -814,26 +933,8 @@ function renderCalc() {
       break;
     }
   }
-  // Each piece of type takes its colour from what ends up behind it, independently.
-  for (const i of intervals) {
-    i.paint.style.color = sweep >= i.exit ? '#270E0E' : '#FF0000';
-  }
-
-  const lead = CALC_ARC_ANCHOR - sweep;
-  const on = pct > 0;
-  const mask = conicMask(lead, sweep);
-  const cap = bandPoint(lead, BAND_R);
-
-  const fill = $('calc-arc-fill');
-  fill.style.display = on ? 'block' : 'none';
-  fill.style.webkitMask = mask;
-  fill.style.mask = mask;
-
-  // Leading cap rides the sweep; the tail cap is pinned at the anchor.
-  const capEl = $('calc-arc-cap');
-  capEl.style.display = on ? 'block' : 'none';
-  placeCap(capEl, cap);
-  $('calc-arc-tail').style.display = on ? 'block' : 'none';
+  calcArc.to(sweep, calcJump);
+  calcJump = false;
 
   const entries = viewEntries().concat(viewOpen()).slice(-16);
 
@@ -1724,8 +1825,9 @@ $('calc-close').addEventListener('click', () => { cancelMeal(); clearCalc(); go(
 // single-ingredient meal is still one tap.
 $('calc-dial-btn').addEventListener('click', () => {
   addIngredient(typedValue());
-  if (!commitMeal()) return render();
-  clearCalc();
+  // Nothing in hand is not a mistake to be refused: the dial is also the way back, and
+  // a button that answers a press by doing nothing at all is just a broken one.
+  if (commitMeal()) ui.animHome = true;
   go('home');
 });
 $('calc-view-toggle').addEventListener('click', () => {
@@ -1992,11 +2094,16 @@ if (window.visualViewport) window.visualViewport.addEventListener('resize', layo
 let lastDay = dayKey(new Date());
 setInterval(() => {
   const now = dayKey(new Date());
-  if (now !== lastDay) { lastDay = now; reindex(); render(); }
+  if (now === lastDay) return;
+  lastDay = now;
+  closeStaleMeals();
+  reindex();
+  render();
 }, 60000);
 
 reindex();
 probeStorage();
+closeStaleMeals();
 // A log still filed under the old name is moved over at once, rather than waiting for
 // the next thing logged to do it.
 try { if (localStorage.getItem(WAS_KEY) != null) save(); } catch (e) { /* nothing to move */ }
