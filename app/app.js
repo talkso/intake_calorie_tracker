@@ -41,6 +41,21 @@ const BAND_R = 217.1375;      // centre radius of the ring band
 const CAP_R = 82.35;          // half the band width
 const CAP_HALF = Math.asin(CAP_R / BAND_R) * 180 / Math.PI;  // arc a cap covers, ~22.3deg
 const HOME_ARC_ANCHOR = 48.2;
+const HOME_RING_C = { x: 326.5, y: 478.5 };  // ring centre in screen coords on Home
+
+/**
+ * Home's ring is half a screen wider than the screen: its centre sits near the right
+ * edge and its right flank is clipped away entirely. Measured against a whole turn, an
+ * arc spends most of itself out there where nobody can see it - which is why a day two
+ * thirds gone looked all but finished, with only a sliver of red left showing.
+ *
+ * It is measured against the part that can be seen instead. The leading cap sets off
+ * from behind the right edge, where the design already hides the tail, and runs until
+ * it is hidden there again, so a full day fills the ring you can actually look at.
+ */
+const HOME_EDGE =
+  Math.asin(Math.min(1, (402 - HOME_RING_C.x + CAP_R) / BAND_R)) * 180 / Math.PI;
+const HOME_SPAN = HOME_ARC_ANCHOR - (180 - HOME_EDGE) + 360;
 // Tail cap sits tangent to the vertical centreline at the bottom of the ring: its left
 // edge lands on the centre x, rather than the cap straddling 6 o'clock.
 const CALC_ARC_ANCHOR = 180 - CAP_HALF;
@@ -90,7 +105,11 @@ function load() {
  * whether a figure is a number or a date is a date.
  */
 function normalize(parsed) {
-  const item = e => ({ v: Math.round(Number(e && e.v)), t: Number(e && e.t) });
+  const item = e => {
+    const o = { v: Math.round(Number(e && e.v)), t: Number(e && e.t) };
+    if (e && e.n) o.n = 1;         // logged onto a day gone by, so it has no time
+    return o;
+  };
   const real = e => Number.isFinite(e.v) && e.v > 0 && Number.isFinite(e.t);
   const list = k => (Array.isArray(parsed && parsed[k]) ? parsed[k] : []);
 
@@ -207,12 +226,18 @@ function reindex() {
     if (!bucket) { bucket = { cal: 0, meals: new Map() }; dayIndex.set(k, bucket); }
     bucket.cal += e.v;
     // Calories count every ingredient, but a meal counts once, timed from when it began.
+    // Unless it was logged onto a day already gone: the clock at the moment it was
+    // typed in says nothing about when it was eaten, so it does not get to say anything.
     if (!bucket.meals.has(e.m)) {
       const m = new Date(e.m);
-      bucket.meals.set(e.m, m.getHours() + m.getMinutes() / 60);
+      bucket.meals.set(e.m, e.n ? null : m.getHours() + m.getMinutes() / 60);
     }
   }
-  for (const b of dayIndex.values()) b.times = [...b.meals.values()].sort((a, c) => a - c);
+  // A meal with no time of its own sorts to the end, where it is out of the way of the
+  // ones that have one.
+  for (const b of dayIndex.values()) {
+    b.times = [...b.meals.values()].sort((a, c) => (a == null ? 1 : c == null ? -1 : a - c));
+  }
 }
 
 function dayAt(d) { const dt = new Date(); dt.setDate(dt.getDate() - d); return dt; }
@@ -301,7 +326,11 @@ function stamp() {
 function addIngredient(v) {
   const n = Math.round(v);
   if (!(n > 0)) return false;
-  store.open.push({ v: n, t: stamp() });
+  const item = { v: n, t: stamp() };
+  // Added to a day that has already been and gone, so the time on the stamp is only
+  // the time it was typed in. Marked as having no time rather than given a wrong one.
+  if (ui.day > 0) item.n = 1;
+  store.open.push(item);
   save();
   return true;
 }
@@ -311,7 +340,11 @@ function commitItems(items) {
   if (!items.length) return false;
   const id = items[0].t;
   const drop = new Set(items.map(e => e.t));
-  for (const it of items) store.entries.push({ v: it.v, t: it.t, m: id });
+  for (const it of items) {
+    const row = { v: it.v, t: it.t, m: id };
+    if (it.n) row.n = 1;
+    store.entries.push(row);
+  }
   store.open = store.open.filter(e => !drop.has(e.t));
   store.entries.sort((a, b) => a.t - b.t);
   save();
@@ -371,6 +404,7 @@ const nf = v => v.toLocaleString('en-US');
 const mon = d => dayAt(d).toLocaleDateString('en-US', { month: 'short' }).toLowerCase();
 
 function hhmm(h) {
+  if (h == null) return 'N/A';
   const hr = Math.round(clamp(h, 0, 23.4)) % 24;
   return (hr % 12 || 12) + (hr >= 12 ? 'PM' : 'AM');
 }
@@ -635,7 +669,7 @@ function renderHome() {
   $('home-day').textContent = dayLabel(ui.day);
   renderPicker();
 
-  const target = clamp(logged / g, 0, 1) * 360;
+  const target = clamp(logged / g, 0, 1) * HOME_SPAN;
   // Only a meal just committed has anywhere to travel from; every other way onto this
   // screen is arriving at a figure, not watching one change.
   if (ui.animHome) {
@@ -653,6 +687,61 @@ const DAY_OPT_STYLE =
   'font:900 21px/1 Archivo,sans-serif;letter-spacing:-.03em;' +
   'margin-bottom:' + (PICK_SIZE - PICK_STEP) * -1 + 'px;';
 
+// ── the day stack ──────────────────────────────────────────────────────────
+// The circles come out from under the badge, each a moment after the one above, and go
+// back the same way. Tucked, every one of them sits exactly on the badge, so the stack
+// reads as one thing unfolding rather than a list appearing over the screen.
+const PICK_MS = 300;
+const PICK_LAG = 26;         // between one circle setting off and the next
+let pickTuck = false;        // built tucked, to be let go on the next frame
+let pickClosing = false;
+let pickTimer = 0;
+document.documentElement.style.setProperty('--pick-ms', PICK_MS + 'ms');
+
+function tuckStack(tucked, last) {
+  const kids = [...$('home-picker-scroll').children];
+  kids.forEach((opt, i) => {
+    // Out from the top down, back in from the bottom up: either way the one nearest
+    // the badge moves first and the stack folds rather than slides.
+    opt.style.transitionDelay = ((last ? kids.length - 1 - i : i) * PICK_LAG) + 'ms';
+    opt.style.transform = tucked ? 'translateY(' + (-i * PICK_STEP) + 'px)' : 'translateY(0)';
+  });
+  $('home-cal-btn').style.opacity = tucked ? '0' : '1';
+  return kids;
+}
+
+function openPicker() {
+  clearTimeout(pickTimer);
+  pickClosing = false;
+  if (ui.picker) return;
+  ui.picker = true;
+  pickTuck = true;
+  render();
+  pickTuck = false;
+  void $('home-picker').offsetWidth;    // laid out tucked first, so they travel
+  tuckStack(false, false);
+}
+
+function closePicker() {
+  if (!ui.picker || pickClosing) return;
+  if (stillMotion && stillMotion.matches) {
+    ui.picker = false;
+    render();
+    return;
+  }
+  pickClosing = true;
+  const kids = tuckStack(true, true);
+  // The circle on the badge takes the badge's day with it, so the hand-over at the end
+  // of the fold is between two things that say the same thing.
+  if (kids.length) kids[0].textContent = dayLabel(ui.day);
+  clearTimeout(pickTimer);
+  pickTimer = setTimeout(() => {
+    pickClosing = false;
+    ui.picker = false;
+    render();
+  }, PICK_MS + kids.length * PICK_LAG);
+}
+
 function renderPicker() {
   const open = ui.picker;
   $('home-picker').style.display = open ? 'block' : 'none';
@@ -661,6 +750,7 @@ function renderPicker() {
   // The stack's first circle lands on the badge, so the badge itself steps aside.
   $('home-day-btn').style.visibility = open ? 'hidden' : 'visible';
   if (!open) return;
+  if (pickClosing) return;     // on its way out: leave it exactly where it has got to
 
   const host = $('home-picker-scroll');
   clear(host);
@@ -672,13 +762,19 @@ function renderPicker() {
     (PICK_VIEW + (last - 3) * PICK_STEP - (last + 1) * PICK_STEP) + 'px';
   for (let i = 0; i <= last; i++) {
     const day = i <= PICK_DAYS ? i : null;
-    const opt = el('div', DAY_OPT_STYLE + 'z-index:' + (last - i),
+    const opt = el('div', DAY_OPT_STYLE + 'z-index:' + (last - i) +
+      (pickTuck ? ';transform:translateY(' + (-i * PICK_STEP) + 'px)' : ''),
       day === null ? 'LOG.' : dayLabel(day));
     opt.className = 'day-opt';
     opt.addEventListener('click', () => {
-      ui.picker = false;
-      if (day === null) { ui.calMonth = monthStart(dayAt(ui.day)); go('calendar'); return; }
+      if (day === null) {
+        ui.picker = false;
+        ui.calMonth = monthStart(dayAt(ui.day));
+        go('calendar');
+        return;
+      }
       ui.day = day;
+      closePicker();
       render();
     });
     host.appendChild(opt);
@@ -1096,6 +1192,21 @@ const TODAY_AT = 4.5 / 7;    // where Friday's slot centres in a row of seven
 // the share of slots instead would drift, because today's own slot counts on the left.
 const futureSlots = cfg => Math.max(1, Math.round(cfg.n * (1 - TODAY_AT) - 0.5));
 
+// ── coming up out of the floor ──────────────────────────────────────────────
+// Changing the range is a change of subject, not of scale: the whole screen is about
+// different days than it was a moment ago. Everything on it comes up from nothing, in
+// a wave across the window, so what arrives is read rather than assumed to be what was
+// there before. Only on the range, though - a scrub rebuilds these constantly.
+const GROW_MS = 420;
+const GROW_WAVE = 200;       // from the first slot setting off to the last
+let statsGrow = false;
+let statsRise = [];
+
+/** How long the slot at j waits, as a share of the way across the visible run. */
+function waveAt(j, n) {
+  return Math.round(clamp((j - OVERSCAN) / n, 0, 1) * GROW_WAVE);
+}
+
 // ui.scrub is a real number of days and slides freely. Only the tracks' transform reads
 // it continuously; every slot is still built on a whole day, so the pixels move with the
 // finger while the data underneath stays on its grid. Slots either side of the visible
@@ -1172,9 +1283,11 @@ function bucketTimes(d, step) {
   if (!perDay.length) return [];
   const out = [];
   for (let r = 0; r < ROWS; r++) {
-    const vals = perDay.map(t => t[r]).filter(v => v != null);
-    if (!vals.length) break;
-    out.push(vals.reduce((a, b) => a + b, 0) / vals.length);
+    const here = perDay.filter(t => r < t.length);
+    if (!here.length) break;                      // no meal in this position at all
+    // A meal with no time of its own is not given one borrowed from its neighbours.
+    const vals = here.map(t => t[r]).filter(v => v != null);
+    out.push(vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null);
   }
   return out;
 }
@@ -1233,10 +1346,14 @@ function renderStats() {
     const fill = ui.selDay == null
       ? (b.v > goalOn(b.d) ? '#FF0000' : '#270E0E')
       : (on ? '#FF0000' : '#A9AE99');
-    slot.appendChild(el('div',
-      'width:' + cfg.w + ';max-width:100%;height:' +
-      Math.min(100, (b.v / barScale) * 100).toFixed(2) + '%;background:' + fill +
-      ';border-radius:' + cfg.cap));
+    const tall = Math.min(100, (b.v / barScale) * 100).toFixed(2) + '%';
+    const bar = el('div',
+      'width:' + cfg.w + ';max-width:100%;height:' + (statsGrow ? '0%' : tall) +
+      ';background:' + fill + ';border-radius:' + cfg.cap +
+      (statsGrow ? ';transition:height ' + GROW_MS + 'ms cubic-bezier(.22,.61,.36,1) ' +
+        waveAt(j, cfg.n) + 'ms' : ''));
+    if (statsGrow) statsRise.push([bar, 'height', tall]);
+    slot.appendChild(bar);
     if (!ahead) {
       slot.addEventListener('click', () => {
         const off = ui.selDay === b.d;
@@ -1260,6 +1377,14 @@ function renderStats() {
 
   renderGoalRule(end, cfg, geom, total, g);
   renderMeals();
+
+  // Laid out flat first, so that what follows is a rise rather than a state.
+  if (statsGrow) {
+    statsGrow = false;
+    void $('stats-bars').offsetWidth;
+    for (const [node, prop, v] of statsRise) node.style[prop] = v;
+    statsRise = [];
+  }
   applyScrub();
 }
 
@@ -1418,10 +1543,15 @@ function renderMeals() {
     col.dataset.day = c.d;
     for (let r = 0; r < ROWS; r++) {
       const lit = r < c.v;
+      // A column fills the way the bar above it rises: from nothing, in the same wave.
+      const rising = statsGrow && lit;
       const dot = el('div',
         'position:relative;width:' + cfg.dot + 'px;height:' + cfg.dot +
-        'px;border-radius:50%;background:' + (lit ? fill : off) + ';flex:none');
-      const label = on && lit && inDots && times[r] != null ? hhmm(times[r]) : '';
+        'px;border-radius:50%;background:' + (lit && !rising ? fill : off) + ';flex:none' +
+        (rising ? ';transition:background-color ' + GROW_MS + 'ms linear ' +
+          waveAt(j, n) + 'ms' : ''));
+      if (rising) statsRise.push([dot, 'backgroundColor', fill]);
+      const label = on && lit && inDots && r < times.length ? hhmm(times[r]) : '';
       dot.appendChild(el('div',
         "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;white-space:nowrap;font:600 10.5px/1 'IBM Plex Mono',monospace;letter-spacing:0;color:" +
         (label ? '#FF0000' : 'transparent'), label));
@@ -1702,8 +1832,8 @@ function render() {
 }
 
 // ── wiring ───────────────────────────────────────────────────────────────────
-$('home-day-btn').addEventListener('click', () => { ui.picker = true; render(); });
-$('home-picker-backdrop').addEventListener('click', () => { ui.picker = false; render(); });
+$('home-day-btn').addEventListener('click', openPicker);
+$('home-picker-backdrop').addEventListener('click', closePicker);
 $('home-cal-btn').addEventListener('click', () => {
   ui.calMonth = monthStart(dayAt(ui.day));
   go('calendar');
@@ -1853,6 +1983,8 @@ $('stats-range-btn').addEventListener('click', () => {
   ui.mealSelDay = null;
   ui.scrub = 0;              // slots change width, so an offset would not carry over
   statsSlider.stop();
+  statsGrow = !(stillMotion && stillMotion.matches);
+  statsRise = [];
   render();
 });
 
