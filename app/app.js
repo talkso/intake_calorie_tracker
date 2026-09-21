@@ -61,15 +61,34 @@ const STORE_KEY = 'countcal.v1';
 const store = load();
 
 function load() {
-  const empty = { entries: [], goal: 1900, open: [] };
   let raw;
-  try { raw = localStorage.getItem(STORE_KEY); } catch (e) { return empty; }
-  if (!raw) return empty;
-  let parsed;
-  try { parsed = JSON.parse(raw); } catch (e) { return empty; }
+  try { raw = localStorage.getItem(STORE_KEY); } catch (e) { return normalize(null); }
+  let parsed = null;
+  try { parsed = JSON.parse(raw); } catch (e) { /* unreadable is the same as absent */ }
+  return normalize(parsed);
+}
+
+/**
+ * Anything claiming to be a store, turned into one - whatever came out of storage, and
+ * whatever came out of a file someone handed the app. Nothing downstream ever has to ask
+ * whether a figure is a number or a date is a date.
+ */
+function normalize(parsed) {
   const item = e => ({ v: Math.round(Number(e && e.v)), t: Number(e && e.t) });
   const real = e => Number.isFinite(e.v) && e.v > 0 && Number.isFinite(e.t);
   const list = k => (Array.isArray(parsed && parsed[k]) ? parsed[k] : []);
+
+  const goal = Number.isFinite(parsed && parsed.goal) ? Math.round(parsed.goal) : 1900;
+  // Every maximum the day has ever been held to, so a past day can still be read
+  // against the figure it was actually kept to. t is when the figure took effect; the
+  // first one reaches back to the beginning, since there was nothing before it.
+  const goals = list('goals')
+    .map(g => ({ t: Number(g && g.t), v: Math.round(Number(g && g.v)) }))
+    .filter(g => Number.isFinite(g.t) && g.v > 0)
+    .sort((a, b) => a.t - b.t);
+  if (!goals.length) goals.push({ t: 0, v: goal });
+  else if (goals[goals.length - 1].v !== goal) goals.push({ t: Date.now(), v: goal });
+
   return {
     // m is the meal an entry belongs to. Anything logged before meals existed stands
     // alone, which is what it counted as then too.
@@ -77,8 +96,11 @@ function load() {
       .map(e => { const o = item(e); o.m = Number.isFinite(Number(e && e.m)) ? Number(e.m) : o.t; return o; })
       .filter(real)
       .sort((a, b) => a.t - b.t),
-    goal: Number.isFinite(parsed && parsed.goal) ? parsed.goal : 1900,
-    open: list('open').map(item).filter(real).sort((a, b) => a.t - b.t)
+    goal: goal,
+    goals: goals,
+    open: list('open').map(item).filter(real).sort((a, b) => a.t - b.t),
+    // The month the log begins at. Null until the app has had a first run to remember.
+    start: Number.isFinite(parsed && parsed.start) ? parsed.start : null
   };
 }
 
@@ -91,6 +113,7 @@ const ui = {
   screen: 'home',
   day: 0,                    // days back from today that Home is showing
   picker: false,
+  settings: false,           // the sheet is up, over whatever screen is behind it
   calMonth: null,            // first of the month the calendar is showing
   display: '0', pending: null, op: null, fresh: true,
   view: 'calc', selTile: null,
@@ -135,6 +158,42 @@ function mealsAt(d) { const b = dayData(d); return b ? Math.min(ROWS, b.times.le
 function dayTimes(d) { const b = dayData(d); return b ? b.times.slice(0, ROWS) : []; }
 
 const goal = () => store.goal;
+
+/** The maximum that was in force on a given day, which is what that day was kept to. */
+function goalOn(d) {
+  if (d <= 0) return store.goal;
+  const end = dayAt(d);
+  end.setHours(23, 59, 59, 999);
+  let v = store.goals[0].v;
+  for (const g of store.goals) {
+    if (g.t > end.getTime()) break;
+    v = g.v;
+  }
+  return v;
+}
+
+function setGoal(v) {
+  const n = Math.round(v);
+  if (!(n > 0) || n === store.goal) return;
+  store.goal = n;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const last = store.goals[store.goals.length - 1];
+  // One change per day. A figure tapped out a digit at a time is one decision, and a
+  // history of 1, 19, 190, 1900 would say nothing about what any day was held to.
+  if (last && last.t >= today.getTime()) last.v = n;
+  else store.goals.push({ t: Date.now(), v: n });
+  save();
+}
+
+/** The month the log begins at, remembered the first time anything needs to know. */
+function ensureStart() {
+  if (Number.isFinite(store.start)) return;
+  const first = store.entries.length ? new Date(store.entries[0].t) : new Date();
+  store.start = monthStart(first).getTime();
+  save();
+}
+
 const viewLogged = () => dayCal(ui.day);
 const viewEntries = () => {
   const k = dayKey(dayAt(ui.day));
@@ -478,6 +537,24 @@ function renderPicker() {
 // ══════════════════════════ CALENDAR ══════════════════════════
 function monthStart(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 
+/** The earliest month the calendar will page back to: where the log is set to begin,
+    or the month of the oldest entry if something older than that was imported. */
+function calFloor() {
+  const set = monthStart(new Date(Number.isFinite(store.start) ? store.start : Date.now()));
+  if (!store.entries.length) return set;
+  const first = monthStart(new Date(store.entries[0].t));
+  return first < set ? first : set;
+}
+
+/** The latest the log may be said to begin: never past this month, and never past
+    something already logged, which moving it forward would put out of reach. */
+function startCeil() {
+  const now = monthStart(new Date());
+  if (!store.entries.length) return now;
+  const first = monthStart(new Date(store.entries[0].t));
+  return first < now ? first : now;
+}
+
 // Shortened only where the full name is long enough to need it.
 const CAL_MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUNE',
                     'JULY', 'AUG', 'SEPT', 'OCT', 'NOV', 'DEC'];
@@ -530,16 +607,18 @@ function renderCalendar() {
     grid.appendChild(cell);
   }
 
-  // Never page past the current month. The glyph stays put and only dims, so the
-  // pair does not go lopsided on the month you are almost always looking at.
+  // Never page past the current month, or back past where the log begins. The glyph
+  // stays put and only dims, so the pair does not go lopsided on the month you are
+  // almost always looking at.
   const now = monthStart(new Date());
   $('cal-next').classList.toggle('off', m >= now);
+  $('cal-prev').classList.toggle('off', m <= calFloor());
 }
 
 function shiftMonth(delta) {
   const m = ui.calMonth || monthStart(new Date());
   const next = new Date(m.getFullYear(), m.getMonth() + delta, 1);
-  if (next > monthStart(new Date())) return;
+  if (next > monthStart(new Date()) || next < calFloor()) return;
   ui.calMonth = next;
   render();
 }
@@ -961,8 +1040,7 @@ function renderStats() {
   domBase = base;
 
   updateHero();
-  $('stats-goal-value').textContent = nf(g);
-  $('stats-goal-line').style.bottom = (GOAL_AT * 100).toFixed(2) + '%';
+  updateGoalLabel();
   $('stats-range-btn').textContent = range;
 
   const barHost = $('stats-bars');
@@ -983,8 +1061,10 @@ function renderStats() {
       'width:' + geom.w.toFixed(3) + 'px;flex:none;height:100%;display:flex;' +
       'align-items:flex-end;justify-content:center' + (ahead ? '' : ';cursor:pointer'));
     slot.dataset.day = b.d;
+    // Over or under is judged against the maximum that day was actually kept to, not
+    // against whatever the figure has since been changed to.
     const fill = ui.selDay == null
-      ? (b.v > g ? '#FF0000' : '#270E0E')
+      ? (b.v > goalOn(b.d) ? '#FF0000' : '#270E0E')
       : (on ? '#FF0000' : '#A9AE99');
     slot.appendChild(el('div',
       'width:' + cfg.w + ';max-width:100%;height:' +
@@ -1011,8 +1091,67 @@ function renderStats() {
     }
   }
 
+  renderGoalRule(end, cfg, geom, total, g);
   renderMeals();
   applyScrub();
+}
+
+/**
+ * The label annotates the rule where it comes in at the left edge, so it reads the
+ * figure that stretch of days was actually kept to. While the maximum has never changed
+ * inside the window that is simply the current one, at the height it has always sat at.
+ */
+function updateGoalLabel() {
+  const cfg = STATS_RANGES[ui.range];
+  const left = Math.round(ui.scrub) + (cfg.n - 1 - futureSlots(cfg)) * cfg.step;
+  const v = goalOn(left);
+  $('stats-goal-value').textContent = nf(v);
+  $('stats-goal-line').style.bottom =
+    (clamp((GOAL_AT * v) / goal(), 0, 1) * 100).toFixed(2) + '%';
+}
+
+/**
+ * The goal rule, one piece per run of days that shared a maximum. While the figure has
+ * never changed that is a single dashed line across the chart, exactly as before; once
+ * it has, the rule steps at the day it moved, and the step is what says so.
+ */
+function renderGoalRule(end, cfg, geom, total, g) {
+  const host = $('stats-goal-track');
+  host.dataset.slots = total;
+  const track = makeTrack(host, geom);
+  // Measured on the bars' own scale, so the rule sits where a bar of that many
+  // calories would end - which is what makes a bar poking above it mean anything.
+  const pctOf = v => clamp((GOAL_AT * v) / g, 0, 1) * 100;
+  const dayOf = j => end + (cfg.n - 1 + OVERSCAN - j) * cfg.step;
+
+  let from = 0;
+  let held = goalOn(dayOf(0));
+  for (let j = 1; j <= total; j++) {
+    const v = j < total ? goalOn(dayOf(j)) : null;
+    if (v === held) continue;
+    track.appendChild(el('div',
+      'position:absolute;left:' + (from * geom.pitch).toFixed(2) + 'px;width:' +
+      ((j - from) * geom.pitch).toFixed(2) + 'px;bottom:' + pctOf(held).toFixed(2) +
+      '%;height:0;border-top:2px dashed #FF0000'));
+    // Every stretch but the first is labelled where it starts, since the one label the
+    // design pins at the left edge can only speak for the stretch it sits on.
+    if (from > 0) {
+      track.appendChild(el('div',
+        'position:absolute;left:' + (from * geom.pitch + 4).toFixed(2) + 'px;bottom:' +
+        pctOf(held).toFixed(2) + '%;transform:translateY(50%);background:#C0C3B0;' +
+        "padding:3px 6px 3px 4px;font:600 9px/1 'IBM Plex Mono',monospace;" +
+        'letter-spacing:.1em;color:#FF0000;white-space:nowrap', nf(held)));
+    }
+    if (v != null) {
+      const a = pctOf(held), b = pctOf(v);
+      track.appendChild(el('div',
+        'position:absolute;left:' + (j * geom.pitch - cfg.gap / 2 - 1).toFixed(2) +
+        'px;width:2px;bottom:' + Math.min(a, b).toFixed(2) + '%;height:' +
+        Math.abs(a - b).toFixed(2) + '%;background:#FF0000'));
+    }
+    from = j;
+    held = v;
+  }
 }
 
 /** The one piece of the screen that reads the window rather than a single day. */
@@ -1147,12 +1286,156 @@ function renderMeals() {
     (range === '1Y' ? 'YEAR' : range.replace('D', ' DAYS'));
 }
 
+// ══════════════════════════ SETTINGS ══════════════════════════
+// A sheet rather than a screen: it comes up over whatever you were looking at, and the
+// strip of that screen left showing along the top is what says it can be pushed back
+// down. Everything on it takes effect where it is set - there is nothing to save.
+
+const SHEET_MS = 300;
+const SHEET_DISMISS = 110;   // canvas px of travel that count as putting it away
+const SHEET_FLICK = 0.35;    // or px per ms over a shorter push, which is a flick
+const SHEET_FLICK_MIN = 40;  // but never on a nudge, however fast it happened to be
+document.documentElement.style.setProperty('--sheet-ms', SHEET_MS + 'ms');
+let sheetTimer = 0, flashTimer = 0;
+
+function openSettings() {
+  if (ui.settings) return;
+  ui.settings = true;
+  clearTimeout(sheetTimer);
+  clearTimeout(flashTimer);
+  $('set-export').textContent = 'EXPORT';
+  $('set-import').textContent = 'IMPORT';
+  const box = $('settings');
+  box.style.display = 'block';
+  renderSettings();
+  void box.offsetWidth;      // laid out closed first, so it rises instead of appearing
+  box.classList.add('open');
+}
+
+function closeSettings() {
+  if (!ui.settings) return;
+  commitGoal();
+  ui.settings = false;
+  const box = $('settings');
+  box.classList.remove('open', 'dragging');
+  $('settings-sheet').style.transform = '';   // back under the class's control
+  const on = document.activeElement;
+  if (on && on.blur) on.blur();
+  clearTimeout(sheetTimer);
+  sheetTimer = setTimeout(() => { if (!ui.settings) box.style.display = 'none'; }, SHEET_MS);
+}
+
+/** Ten years back, which is further than anyone will page and short of the epoch. */
+function startFloor() {
+  const d = monthStart(new Date());
+  d.setFullYear(d.getFullYear() - 10);
+  return d;
+}
+
+function shiftStart(delta) {
+  const cur = monthStart(new Date(Number.isFinite(store.start) ? store.start : Date.now()));
+  const next = new Date(cur.getFullYear(), cur.getMonth() + delta, 1);
+  if (next > startCeil() || next < startFloor()) return;
+  store.start = next.getTime();
+  save();
+  // The calendar may be sitting on a month that has just gone out of reach.
+  if (ui.calMonth && ui.calMonth < calFloor()) ui.calMonth = calFloor();
+  renderSettings();
+  render();
+}
+
+const goalDigits = () => Math.round(Number(String($('set-goal').value).replace(/[^0-9]/g, '')));
+
+/** Taken as it is typed, so the screen behind answers, but left alone otherwise: a
+    half-typed figure is not a decision and must not be tidied up or clamped yet. */
+function typeGoal() {
+  const v = goalDigits();
+  if (v > 0 && v <= 20000) { setGoal(v); render(); }
+}
+
+function commitGoal() {
+  const v = goalDigits();
+  setGoal(clamp(v > 0 ? v : goal(), 100, 20000));
+  $('set-goal').value = nf(goal());
+  render();
+}
+
+function flash(id, text, back) {
+  clearTimeout(flashTimer);
+  $('set-export').textContent = 'EXPORT';
+  $('set-import').textContent = 'IMPORT';
+  $(id).textContent = text;
+  flashTimer = setTimeout(() => { $(id).textContent = back; }, 1800);
+}
+
+function exportData() {
+  const d = new Date();
+  const name = 'countcal-' + d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + '.json';
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(store, null, 2)], { type: 'application/json' }));
+  const a = el('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  flash('set-export', 'EXPORTED', 'EXPORT');
+}
+
+/**
+ * Reads a file back in. A backup is a restore, and a restore puts back what is missing:
+ * what is already here is kept, because nothing in a file can mean "and forget the rest".
+ * Returns how many items it brought in, or null if the file was not one of ours.
+ */
+function importData(text) {
+  let parsed = null;
+  try { parsed = JSON.parse(text); } catch (e) { return null; }
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.entries)) return null;
+  const inc = normalize(parsed);
+
+  let added = 0;
+  const merge = (into, from) => {
+    const seen = new Set(into.map(e => e.t));
+    for (const e of from) if (!seen.has(e.t)) { into.push(e); seen.add(e.t); added++; }
+    into.sort((a, b) => a.t - b.t);
+  };
+  merge(store.entries, inc.entries);
+  merge(store.open, inc.open);
+
+  const seen = new Set(store.goals.map(g => g.t));
+  for (const g of inc.goals) if (!seen.has(g.t)) store.goals.push(g);
+  store.goals.sort((a, b) => a.t - b.t);
+  store.goal = inc.goal;
+  if (store.goals[store.goals.length - 1].v !== store.goal) {
+    store.goals.push({ t: Date.now(), v: store.goal });
+  }
+  // A file that reaches further back moves the beginning back with it.
+  if (Number.isFinite(inc.start) && (!Number.isFinite(store.start) || inc.start < store.start)) {
+    store.start = inc.start;
+  }
+  save();
+  reindex();
+  return added;
+}
+
+function renderSettings() {
+  const input = $('set-goal');
+  if (document.activeElement !== input) input.value = nf(goal());
+  const s = monthStart(new Date(Number.isFinite(store.start) ? store.start : Date.now()));
+  $('set-start').textContent = CAL_MONTHS[s.getMonth()] + ' ' + s.getFullYear();
+  $('set-start-prev').classList.toggle('off', s <= startFloor());
+  $('set-start-next').classList.toggle('off', s >= startCeil());
+}
+
 // ── render ───────────────────────────────────────────────────────────────────
 function render() {
   if (ui.screen === 'home') renderHome();
   else if (ui.screen === 'calc') renderCalc();
   else if (ui.screen === 'calendar') renderCalendar();
   else renderStats();
+  if (ui.settings) renderSettings();
 }
 
 // ── wiring ───────────────────────────────────────────────────────────────────
@@ -1165,6 +1448,87 @@ $('home-cal-btn').addEventListener('click', () => {
 $('cal-back-btn').addEventListener('click', () => go('home'));
 $('cal-prev').addEventListener('click', () => shiftMonth(-1));
 $('cal-next').addEventListener('click', () => shiftMonth(1));
+
+// The same circle in the same corner on every screen, so it is one thing in one place.
+for (const id of ['home-settings-btn', 'cal-settings-btn', 'calc-settings-btn', 'stats-settings-btn']) {
+  $(id).addEventListener('click', openSettings);
+}
+$('set-close').addEventListener('click', closeSettings);
+$('settings-scrim').addEventListener('click', closeSettings);
+$('set-start-prev').addEventListener('click', () => shiftStart(-1));
+$('set-start-next').addEventListener('click', () => shiftStart(1));
+$('set-goal').addEventListener('input', typeGoal);
+$('set-goal').addEventListener('change', commitGoal);
+$('set-goal').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
+$('set-export').addEventListener('click', exportData);
+$('set-import').addEventListener('click', () => {
+  $('set-file').value = '';        // so choosing the same file twice still counts
+  $('set-file').click();
+});
+$('set-file').addEventListener('change', e => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const n = importData(String(reader.result));
+    if (n === null) return flash('set-import', 'BAD FILE', 'IMPORT');
+    flash('set-import', n ? 'ADDED ' + n : 'NO CHANGE', 'IMPORT');
+    renderSettings();
+    render();
+  };
+  reader.onerror = () => flash('set-import', 'BAD FILE', 'IMPORT');
+  reader.readAsText(file);
+});
+
+// Pushed back down rather than dismissed: the sheet tracks the finger, and lets go only
+// if it was pushed far enough or fast enough to have been meant.
+const sheet = $('settings-sheet');
+let sheetFrom = null, sheetMoved = false;
+
+sheet.addEventListener('pointerdown', e => {
+  sheetMoved = false;
+  // The figure is typed into the screen itself, so the field keeps its own gestures.
+  sheetFrom = e.target.closest('#set-goal')
+    ? null : { y: e.clientY, t: e.timeStamp, dy: 0, vel: 0 };
+});
+
+sheet.addEventListener('pointermove', e => {
+  if (!sheetFrom) return;
+  const dy = (e.clientY - sheetFrom.y) / (scale || 1);
+  if (!sheetMoved) {
+    if (dy < 5) return;                        // downward only; upward is not a gesture
+    sheetMoved = true;
+    $('settings').classList.add('dragging');
+    try { sheet.setPointerCapture(e.pointerId); } catch (_) { /* gone already */ }
+  }
+  const shift = Math.max(0, dy);
+  if (e.timeStamp > sheetFrom.t) {
+    sheetFrom.vel = (shift - sheetFrom.dy) / (e.timeStamp - sheetFrom.t);
+  }
+  sheetFrom.dy = shift;
+  sheetFrom.t = e.timeStamp;
+  sheet.style.transform = 'translateY(' + shift.toFixed(2) + 'px)';
+});
+
+function releaseSheet(e) {
+  const s = sheetFrom;
+  sheetFrom = null;
+  if (!s || !sheetMoved) return;
+  try { sheet.releasePointerCapture(e.pointerId); } catch (_) { /* already gone */ }
+  $('settings').classList.remove('dragging');
+  if (s.dy > SHEET_DISMISS || (s.dy > SHEET_FLICK_MIN && s.vel > SHEET_FLICK)) closeSettings();
+  else sheet.style.transform = '';            // springs back under the transition
+}
+sheet.addEventListener('pointerup', releaseSheet);
+sheet.addEventListener('pointercancel', releaseSheet);
+
+// A push that ends over something tappable must not also tap it.
+sheet.addEventListener('click', e => {
+  if (!sheetMoved) return;
+  sheetMoved = false;
+  e.stopPropagation();
+  e.preventDefault();
+}, true);
 
 $('home-stats-btn').addEventListener('click', () => go('stats'));
 $('home-open-calc').addEventListener('click', () => go('calc'));
@@ -1302,9 +1666,11 @@ function applyScrub() {
   const px = (delta / cfg.step) * pitchOf(cfg.n, cfg.gap).pitch;
   const mpx = (delta / mcfg.step) * pitchOf(mcfg.n, mcfg.cg).pitch;
   shiftTrack('stats-bars', px);
+  shiftTrack('stats-goal-track', px);
   shiftTrack('stats-xlabels', px);
   shiftTrack('stats-meal-cols', mpx);
   shiftTrack('stats-meal-labels', mpx);
+  updateGoalLabel();          // which stretch of the rule it sits on changes as it slides
 }
 
 function shiftTrack(id, px) {
@@ -1376,7 +1742,8 @@ let swiped = false;
 stage.addEventListener('pointerdown', e => {
   swiped = false;
   swipeFrom = null;
-  if (!SWIPE_TO[ui.screen] || ui.picker) return;   // the open day stack owns the gesture
+  // The open day stack and the settings sheet each own the gesture while they are up.
+  if (!SWIPE_TO[ui.screen] || ui.picker || ui.settings) return;
   const keep = SWIPE_KEEP[ui.screen] && SWIPE_KEEP[ui.screen]();
   if (keep && e.target.closest(keep)) return;
   swipeFrom = { x: e.clientX, y: e.clientY, dx: 0, dy: 0 };
@@ -1413,6 +1780,13 @@ stage.addEventListener('click', e => {
 
 // hardware keyboard, as the prototype supported
 window.addEventListener('keydown', e => {
+  // Digits typed into the maximum are not digits typed into the calculator behind it.
+  if (ui.settings) {
+    if (e.key !== 'Escape') return;
+    closeSettings();
+    e.preventDefault();
+    return;
+  }
   if (ui.screen !== 'calc') return;
   const k = e.key;
   if (k >= '0' && k <= '9') digit(k);
@@ -1437,6 +1811,7 @@ setInterval(() => {
 }, 60000);
 
 reindex();
+ensureStart();
 layout();
 go('home');
 

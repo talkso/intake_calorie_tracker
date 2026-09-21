@@ -28,7 +28,7 @@
   <div style="position: absolute; left: 0; right: 0; top: 58px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; z-index: 9">
     <div id="home-stats-btn" class="nav-pill" style="background: #270E0E; color: #FF0000; font: 600 11px/1 'IBM Plex Mono',monospace; letter-spacing: .16em; padding: 9px 13px">STATS</div>
     <div style="position: absolute; left: 0; right: 0; text-align: center; color: #270E0E; font: 600 17px/1 'IBM Plex Mono',monospace; letter-spacing: .14em; pointer-events: none">intake</div>
-    <div style="width:29px;height:29px;border-radius:50%;border:2.5px solid #270E0E;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width: 8px; height: 8px; border-radius: 50%; background: #270E0E"></div></div>
+    <div id="home-settings-btn" class="dot-btn" role="button" tabindex="0" aria-label="Settings" style="width:29px;height:29px;border-radius:50%;border:2.5px solid #270E0E;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width: 8px; height: 8px; border-radius: 50%; background: #270E0E"></div></div>
   </div>
 
   <div style="position: absolute; left: 18px; top: 104px; z-index: 9; display: flex; flex-direction: column; gap: 2px; color: #270E0E">
@@ -87,7 +87,7 @@
   <div style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
     <button type="button" id="cal-back-btn" class="btn-close" style="width:29px;height:29px;border-radius:50%;border:0;background:#FF0000;color:#270E0E;font:900 12px/1 Archivo,sans-serif;-webkit-text-stroke:0.9px currentColor;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;flex:none">✕</button>
     <div style="position:absolute;left:0;right:0;text-align:center;color:#270E0E;font:600 17px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;pointer-events:none">log</div>
-    <div style="width:29px;height:29px;border-radius:50%;border:2.5px solid #FF0000;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#FF0000"></div></div>
+    <div id="cal-settings-btn" class="dot-btn" role="button" tabindex="0" aria-label="Settings" style="width:29px;height:29px;border-radius:50%;border:2.5px solid #FF0000;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#FF0000"></div></div>
   </div>
 
   <!-- The selected day, read the way the reference reads it: the numeral carries the
@@ -117,7 +117,7 @@
 
   <div style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
     <button type="button" id="calc-close" class="btn-close" style="width:29px;height:29px;border-radius:50%;border:0;background:#FF0000;color:#270E0E;font:900 12px/1 Archivo,sans-serif;-webkit-text-stroke:0.9px currentColor;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;flex:none">✕</button>
-    <div id="calc-title" style="font:600 14px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;color:#270E0E">CALC</div><div style="width:29px;height:29px;border-radius:50%;background:#FF0000;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#270E0E"></div></div>
+    <div id="calc-title" style="font:600 14px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;color:#270E0E">CALC</div><div id="calc-settings-btn" class="dot-btn" role="button" tabindex="0" aria-label="Settings" style="width:29px;height:29px;border-radius:50%;background:#FF0000;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#270E0E"></div></div>
   </div>
 
   <div style="position:absolute;left:0;right:0;top:0;height:534px;overflow:hidden;z-index:3">
@@ -171,7 +171,7 @@
   <div style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
     <div id="stats-home-btn" class="nav-pill" style="background:#FF0000;color:#270E0E;font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;padding:9px 13px">HOME</div>
     <div style="position:absolute;left:0;right:0;text-align:center;color:#270E0E;font:600 17px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;pointer-events:none">stats</div>
-    <div style="width:29px;height:29px;border-radius:50%;border:2.5px solid #FF0000;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#FF0000"></div></div>
+    <div id="stats-settings-btn" class="dot-btn" role="button" tabindex="0" aria-label="Settings" style="width:29px;height:29px;border-radius:50%;border:2.5px solid #FF0000;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#FF0000"></div></div>
   </div>
 
   <div style="position:absolute;left:24px;right:24px;top:104px;z-index:7;color:#270E0E">
@@ -190,7 +190,12 @@
 
     <div id="stats-bars" class="scrubbable track" style="position:absolute;left:0;right:0;top:0;bottom:2px"></div>
 
-    <div id="stats-goal-line" style="position:absolute;left:0;right:0;bottom:86.00%;height:0;border-top:2px dashed #FF0000;z-index:5">
+    <!-- The rule is drawn slot by slot on a track of its own rather than as one line
+         across the chart, so that a maximum changed partway through the window shows
+         up as a step in it, on the day it changed, and slides with everything else. -->
+    <div id="stats-goal-track" class="track" style="position:absolute;inset:0;z-index:5;pointer-events:none"></div>
+
+    <div id="stats-goal-line" style="position:absolute;left:0;right:0;bottom:86.00%;height:0;z-index:6;pointer-events:none">
       <div style="position:absolute;left:0;top:0;transform:translateY(-50%);background:#C0C3B0;padding:3px 7px 3px 0;font:600 9px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;color:#FF0000;white-space:nowrap">GOAL <span id="stats-goal-value">1,900</span></div>
     </div>
   </div>
@@ -224,6 +229,44 @@
   </div>
 
 </section>
+
+<!-- ═══════════════════════════ SETTINGS ═══════════════════════════ -->
+<!-- Comes up over whichever screen you were on rather than replacing it, which is why
+     it is not one of the screens: the strip of that screen left showing along the top
+     is both the way back and the thing that says which way to put it away. -->
+<div id="settings" style="position:absolute;inset:0;z-index:40;display:none">
+  <div id="settings-scrim" style="position:absolute;inset:0;background:rgba(39,14,14,.22)"></div>
+
+  <div id="settings-sheet" style="position:absolute;left:0;right:0;top:96px;bottom:0;background:#C0C3B0;border-radius:26px 26px 0 0;overflow:hidden;font-family:Archivo,sans-serif">
+    <div style="position:absolute;left:50%;top:15px;margin-left:-22px;width:44px;height:4px;border-radius:2px;background:rgba(39,14,14,.22)"></div>
+
+    <div style="position:absolute;left:24px;right:24px;bottom:122px;display:flex;flex-direction:column;align-items:flex-end;gap:34px;text-align:right">
+
+      <div style="align-self:stretch;display:flex;flex-direction:column;align-items:flex-end;gap:11px">
+        <div class="set-cap">MAXIMUM CALORIES</div>
+        <input id="set-goal" class="set-val" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-label="Maximum calories" value="1,900">
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:11px">
+        <div class="set-cap">LOG STARTS</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-right:-8px">
+          <button type="button" id="set-start-prev" class="cal-nav" aria-label="Earlier start month">‹</button>
+          <div id="set-start" class="set-val">SEPT 2026</div>
+          <button type="button" id="set-start-next" class="cal-nav" aria-label="Later start month">›</button>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:11px">
+        <div class="set-cap">DATA</div>
+        <div id="set-export" class="set-val set-act">EXPORT</div>
+        <div id="set-import" class="set-val set-act">IMPORT</div>
+      </div>
+    </div>
+
+    <button type="button" id="set-close" class="btn-close" aria-label="Close settings" style="position:absolute;right:24px;bottom:38px;width:46px;height:46px;border-radius:50%;border:0;background:#FF0000;color:#270E0E;font:900 17px/1 Archivo,sans-serif;-webkit-text-stroke:1px currentColor;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer">✕</button>
+    <input type="file" id="set-file" accept="application/json,.json" style="display:none" aria-hidden="true" tabindex="-1">
+  </div>
+</div>
 
 </div>
 

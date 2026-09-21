@@ -143,6 +143,64 @@ body {
    below it, and `overflow: hidden` has no way to say one axis without the other. */
 .track { clip-path: inset(-400px 0 -400px 0); }
 
+/* ── settings sheet ──
+   Comes up from the bottom and is put away by pushing it back down, so the transform is
+   the whole of its state: the class drives it while it is being animated, and a drag
+   writes an inline transform that outranks the class for as long as the finger is down. */
+#settings-sheet {
+  transform: translateY(100%);
+  transition: transform var(--sheet-ms, 300ms) cubic-bezier(.22, .61, .36, 1);
+  will-change: transform;
+  /* Vertical gestures belong to the sheet; without this the page takes them as a scroll. */
+  touch-action: none;
+}
+#settings-scrim { opacity: 0; transition: opacity var(--sheet-ms, 300ms) linear; }
+#settings.open #settings-sheet { transform: translateY(0); }
+#settings.open #settings-scrim { opacity: 1; }
+/* Under the finger there is nothing to ease towards - it is already where it is going. */
+#settings.dragging #settings-sheet { transition: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  #settings-sheet, #settings-scrim { transition: none; }
+}
+
+.set-cap {
+  font: 600 9.5px/1 'IBM Plex Mono', monospace;
+  letter-spacing: .2em;
+  color: rgba(39, 14, 14, .45);
+}
+
+.set-val {
+  font: 900 44px/.9 Archivo, sans-serif;
+  letter-spacing: -.035em;
+  color: #270E0E;
+  margin: 0;
+}
+
+/* The figure is typed straight into the screen rather than into a field drawn on top of
+   it, so the input has to give up everything that would make it look like one. */
+input.set-val {
+  width: 100%;
+  text-align: right;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  outline: none;
+  border-radius: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  /* The sheet takes every other gesture on itself; the field keeps its own, so the
+     caret can still be put where it is wanted. */
+  touch-action: auto;
+}
+input.set-val:focus { color: #FF0000; }
+
+.set-act { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.set-act:active { color: #FF0000; }
+
+.dot-btn { cursor: pointer; }
+.dot-btn:active { opacity: .55; }
+
 .cal-cell { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .cal-cell:active { transform: scale(.92); }
 
