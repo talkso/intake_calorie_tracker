@@ -198,6 +198,19 @@ input.set-val:focus { color: #FF0000; }
 .set-act { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .set-act:active { color: #FF0000; }
 
+/* A word waiting on a second tap shows its own window running out, the way an armed
+   tile does: it holds the accent, then hands the colour back over the last stretch. */
+@keyframes set-arm {
+  0%, 74% { color: #FF0000; }
+  100%    { color: #270E0E; }
+}
+
+.set-val.armed { animation: set-arm var(--set-arm-ms, 3500ms) linear forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .set-val.armed { animation: none; color: #FF0000; }
+}
+
 .dot-btn { cursor: pointer; }
 .dot-btn:active { opacity: .55; }
 

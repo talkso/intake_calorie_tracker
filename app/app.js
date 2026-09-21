@@ -571,7 +571,7 @@ function renderCalendar() {
 
   const dow = $('cal-dow');
   clear(dow);
-  for (const l of ['S', 'M', 'T', 'W', 'T', 'F', 'S']) {
+  for (const l of ['M', 'T', 'W', 'T', 'F', 'S', 'S']) {
     dow.appendChild(el('div',
       "text-align:center;color:rgba(39,14,14,.4);font:600 9px/1 'IBM Plex Mono',monospace;" +
       'letter-spacing:.1em', l));
@@ -579,7 +579,10 @@ function renderCalendar() {
 
   const grid = $('cal-grid');
   clear(grid);
-  const pad = new Date(m.getFullYear(), m.getMonth(), 1).getDay();
+  // Weeks run Monday to Sunday, so the week is one block and the weekend closes it
+  // rather than being split across the two ends of the row. getDay() counts from
+  // Sunday, which is one column too far left here.
+  const pad = (new Date(m.getFullYear(), m.getMonth(), 1).getDay() + 6) % 7;
   const days = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
   for (let i = 0; i < pad; i++) grid.appendChild(el('div', 'aspect-ratio:1'));
 
@@ -1303,8 +1306,8 @@ function openSettings() {
   ui.settings = true;
   clearTimeout(sheetTimer);
   clearTimeout(flashTimer);
-  $('set-export').textContent = 'EXPORT';
-  $('set-import').textContent = 'IMPORT';
+  disarmSetting();
+  setNote = null;
   const box = $('settings');
   box.style.display = 'block';
   renderSettings();
@@ -1360,12 +1363,45 @@ function commitGoal() {
   render();
 }
 
-function flash(id, text, back) {
+// ── asking first ──
+// EXPORT can be done again; the other two cannot be taken back, so each wants a second
+// tap. The window shuts on its own and the word hands its colour back as it goes, so a
+// word left asking is never stale - what it says is always what a second tap would do.
+const SET_WORDS = { 'set-export': 'EXPORT', 'set-import': 'IMPORT', 'set-erase': 'ERASE' };
+const ASK_WORDS = { 'set-import': 'REPLACE ALL?', 'set-erase': 'ERASE ALL?' };
+const ASK_CAPS = {
+  'set-import': 'THIS REPLACES EVERYTHING LOGGED',
+  'set-erase': 'THIS DELETES EVERYTHING LOGGED'
+};
+const SET_ARM_MS = 3500;     // long enough to read a question, short enough to forget
+document.documentElement.style.setProperty('--set-arm-ms', SET_ARM_MS + 'ms');
+
+let setArm = null;           // the word waiting on a second tap
+let setNote = null;          // { id, text } - what a word did, said briefly in its place
+let armTimer2 = 0;
+
+function armSetting(id) {
+  clearTimeout(armTimer2);
+  setArm = id;
+  setNote = null;
+  renderSettings();
+  armTimer2 = setTimeout(() => {
+    if (setArm !== id) return;
+    setArm = null;
+    renderSettings();
+  }, SET_ARM_MS);
+}
+
+function disarmSetting() {
+  clearTimeout(armTimer2);
+  setArm = null;
+}
+
+function flash(id, text) {
   clearTimeout(flashTimer);
-  $('set-export').textContent = 'EXPORT';
-  $('set-import').textContent = 'IMPORT';
-  $(id).textContent = text;
-  flashTimer = setTimeout(() => { $(id).textContent = back; }, 1800);
+  setNote = { id: id, text: text };
+  renderSettings();
+  flashTimer = setTimeout(() => { setNote = null; renderSettings(); }, 1800);
 }
 
 function exportData() {
@@ -1381,46 +1417,67 @@ function exportData() {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
-  flash('set-export', 'EXPORTED', 'EXPORT');
+  flash('set-export', 'EXPORTED');
 }
 
 /**
- * Reads a file back in. A backup is a restore, and a restore puts back what is missing:
- * what is already here is kept, because nothing in a file can mean "and forget the rest".
- * Returns how many items it brought in, or null if the file was not one of ours.
+ * Reads a file back in, in place of everything held rather than alongside it: what comes
+ * out is exactly what went into the file, which is the only reading of a backup that can
+ * be relied on. Returns how many entries it loaded, or null if the file was not ours.
  */
 function importData(text) {
   let parsed = null;
   try { parsed = JSON.parse(text); } catch (e) { return null; }
   if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.entries)) return null;
   const inc = normalize(parsed);
-
-  let added = 0;
-  const merge = (into, from) => {
-    const seen = new Set(into.map(e => e.t));
-    for (const e of from) if (!seen.has(e.t)) { into.push(e); seen.add(e.t); added++; }
-    into.sort((a, b) => a.t - b.t);
-  };
-  merge(store.entries, inc.entries);
-  merge(store.open, inc.open);
-
-  const seen = new Set(store.goals.map(g => g.t));
-  for (const g of inc.goals) if (!seen.has(g.t)) store.goals.push(g);
-  store.goals.sort((a, b) => a.t - b.t);
+  store.entries = inc.entries;
+  store.open = inc.open;
   store.goal = inc.goal;
-  if (store.goals[store.goals.length - 1].v !== store.goal) {
-    store.goals.push({ t: Date.now(), v: store.goal });
-  }
-  // A file that reaches further back moves the beginning back with it.
-  if (Number.isFinite(inc.start) && (!Number.isFinite(store.start) || inc.start < store.start)) {
-    store.start = inc.start;
-  }
+  store.goals = inc.goals;
+  store.start = inc.start;          // null in an old file; the first run below settles it
+  settle();
+  return store.entries.length;
+}
+
+/** Everything held, thrown away. The maximum is a setting rather than something logged,
+    so it stays - but the figures it used to be went with the days they applied to. */
+function eraseData() {
+  store.entries = [];
+  store.open = [];
+  store.goals = [{ t: 0, v: store.goal }];
+  store.start = null;               // the log begins again from here
+  settle();
+}
+
+/** Puts the app back on its feet after the whole store has been replaced under it. */
+function settle() {
   save();
   reindex();
-  return added;
+  ensureStart();
+  disarmTile();
+  ui.day = 0;
+  ui.selDay = null;
+  ui.mealSelDay = null;
+  ui.scrub = 0;
+  ui.histX = 0;
+  ui.display = '0';
+  ui.pending = null;
+  ui.op = null;
+  ui.fresh = true;
+  ui.showTotal = openTotal() > 0;
+  // The month on show may no longer be one the log reaches back to.
+  if (ui.calMonth && ui.calMonth < calFloor()) ui.calMonth = calFloor();
 }
 
 function renderSettings() {
+  for (const id of Object.keys(SET_WORDS)) {
+    const asking = setArm === id;
+    const note = setNote && setNote.id === id ? setNote.text : null;
+    $(id).textContent = note || (asking ? ASK_WORDS[id] : SET_WORDS[id]);
+    $(id).classList.toggle('armed', asking);
+  }
+  $('set-data-cap').textContent = setArm ? ASK_CAPS[setArm] : 'DATA';
+
   const input = $('set-goal');
   if (document.activeElement !== input) input.value = nf(goal());
   const s = monthStart(new Date(Number.isFinite(store.start) ? store.start : Date.now()));
@@ -1462,22 +1519,36 @@ $('set-goal').addEventListener('input', typeGoal);
 $('set-goal').addEventListener('change', commitGoal);
 $('set-goal').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.blur(); });
 $('set-export').addEventListener('click', exportData);
+
+// Asked before the picker opens, not after a file has been chosen: by then the answer
+// would be about a file, when the question is about everything already logged.
 $('set-import').addEventListener('click', () => {
+  if (setArm !== 'set-import') return armSetting('set-import');
+  disarmSetting();
+  renderSettings();
   $('set-file').value = '';        // so choosing the same file twice still counts
   $('set-file').click();
 });
+
+$('set-erase').addEventListener('click', () => {
+  if (setArm !== 'set-erase') return armSetting('set-erase');
+  disarmSetting();
+  eraseData();
+  flash('set-erase', 'ERASED');
+  render();
+});
+
 $('set-file').addEventListener('change', e => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
     const n = importData(String(reader.result));
-    if (n === null) return flash('set-import', 'BAD FILE', 'IMPORT');
-    flash('set-import', n ? 'ADDED ' + n : 'NO CHANGE', 'IMPORT');
-    renderSettings();
+    if (n === null) return flash('set-import', 'BAD FILE');
+    flash('set-import', 'LOADED ' + n);
     render();
   };
-  reader.onerror = () => flash('set-import', 'BAD FILE', 'IMPORT');
+  reader.onerror = () => flash('set-import', 'BAD FILE');
   reader.readAsText(file);
 });
 
@@ -1488,6 +1559,12 @@ let sheetFrom = null, sheetMoved = false;
 
 sheet.addEventListener('pointerdown', e => {
   sheetMoved = false;
+  // Anything else touched is an answer of no: the question goes away rather than
+  // sitting there waiting to be answered by a tap meant for something else.
+  if (setArm && !e.target.closest('#' + setArm)) {
+    disarmSetting();
+    renderSettings();
+  }
   // The figure is typed into the screen itself, so the field keeps its own gestures.
   sheetFrom = e.target.closest('#set-goal')
     ? null : { y: e.clientY, t: e.timeStamp, dy: 0, vel: 0 };
