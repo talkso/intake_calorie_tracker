@@ -61,19 +61,24 @@ const STORE_KEY = 'countcal.v1';
 const store = load();
 
 function load() {
-  const empty = { entries: [], goal: 1900 };
+  const empty = { entries: [], goal: 1900, open: [] };
   let raw;
   try { raw = localStorage.getItem(STORE_KEY); } catch (e) { return empty; }
   if (!raw) return empty;
   let parsed;
   try { parsed = JSON.parse(raw); } catch (e) { return empty; }
-  const entries = Array.isArray(parsed && parsed.entries) ? parsed.entries : [];
+  const item = e => ({ v: Math.round(Number(e && e.v)), t: Number(e && e.t) });
+  const real = e => Number.isFinite(e.v) && e.v > 0 && Number.isFinite(e.t);
+  const list = k => (Array.isArray(parsed && parsed[k]) ? parsed[k] : []);
   return {
-    entries: entries
-      .map(e => ({ v: Math.round(Number(e && e.v)), t: Number(e && e.t) }))
-      .filter(e => Number.isFinite(e.v) && e.v > 0 && Number.isFinite(e.t))
+    // m is the meal an entry belongs to. Anything logged before meals existed stands
+    // alone, which is what it counted as then too.
+    entries: list('entries')
+      .map(e => { const o = item(e); o.m = Number.isFinite(Number(e && e.m)) ? Number(e.m) : o.t; return o; })
+      .filter(real)
       .sort((a, b) => a.t - b.t),
-    goal: Number.isFinite(parsed && parsed.goal) ? parsed.goal : 1900
+    goal: Number.isFinite(parsed && parsed.goal) ? parsed.goal : 1900,
+    open: list('open').map(item).filter(real).sort((a, b) => a.t - b.t)
   };
 }
 
@@ -89,6 +94,7 @@ const ui = {
   calMonth: null,            // first of the month the calendar is showing
   display: '0', pending: null, op: null, fresh: true,
   view: 'calc', selTile: null,
+  showTotal: false,          // the dial reads the meal so far, not what was typed
   histX: 0,                  // pixels the history row is dragged left of its start
   range: '7D',
   selDay: null, mealSelDay: null,   // selection keyed by day, so a slide cannot shift it
@@ -111,11 +117,15 @@ function reindex() {
     const d = new Date(e.t);
     const k = dayKey(d);
     let bucket = dayIndex.get(k);
-    if (!bucket) { bucket = { cal: 0, times: [] }; dayIndex.set(k, bucket); }
+    if (!bucket) { bucket = { cal: 0, meals: new Map() }; dayIndex.set(k, bucket); }
     bucket.cal += e.v;
-    bucket.times.push(d.getHours() + d.getMinutes() / 60);
+    // Calories count every ingredient, but a meal counts once, timed from when it began.
+    if (!bucket.meals.has(e.m)) {
+      const m = new Date(e.m);
+      bucket.meals.set(e.m, m.getHours() + m.getMinutes() / 60);
+    }
   }
-  for (const b of dayIndex.values()) b.times.sort((a, c) => a - c);
+  for (const b of dayIndex.values()) b.times = [...b.meals.values()].sort((a, c) => a - c);
 }
 
 function dayAt(d) { const dt = new Date(); dt.setDate(dt.getDate() - d); return dt; }
@@ -147,21 +157,62 @@ function dayLabel(d) {
   return (dt.getMonth() + 1) + '/' + dt.getDate();
 }
 
-// Entries land on the day Home is showing, so backfilling a missed meal goes where you
-// are looking rather than always onto today.
-function logEntry(v) {
-  store.entries.push({ v: v, t: dayAt(ui.day).getTime() });
+// ── the meal being built ─────────────────────────────────────────────────────
+// = adds an ingredient; nothing reaches the day's total until the dial commits the
+// meal. Ingredients keep their own figures - the meal is only how they are grouped.
+
+const viewOpen = () => {
+  const k = dayKey(dayAt(ui.day));
+  return store.open.filter(e => dayKey(new Date(e.t)) === k);
+};
+
+const openTotal = () => viewOpen().reduce((a, e) => a + e.v, 0);
+
+/** A stamp on the day Home is showing, nudged until no other item shares it. */
+function stamp() {
+  let t = dayAt(ui.day).getTime();
+  while (store.entries.some(e => e.t === t) || store.open.some(e => e.t === t)) t++;
+  return t;
+}
+
+function addIngredient(v) {
+  const n = Math.round(v);
+  if (!(n > 0)) return false;
+  store.open.push({ v: n, t: stamp() });
+  save();
+  return true;
+}
+
+/** The whole meal goes through at once, its ingredients sharing the id of the first. */
+function commitMeal() {
+  const items = viewOpen();
+  if (!items.length) return false;
+  const id = items[0].t;
+  for (const it of items) store.entries.push({ v: it.v, t: it.t, m: id });
+  store.open = store.open.filter(e => items.indexOf(e) < 0);
   store.entries.sort((a, b) => a.t - b.t);
   save();
   reindex();
+  return true;
 }
 
+function cancelMeal() {
+  if (!store.open.length) return;
+  store.open = [];
+  save();
+}
+
+/** Deletes an ingredient wherever it lives - a committed meal, or the open one. */
 function removeEntry(t) {
   const i = store.entries.findIndex(e => e.t === t);
-  if (i < 0) return;
-  store.entries.splice(i, 1);
-  save();
-  reindex();
+  if (i >= 0) {
+    store.entries.splice(i, 1);
+    save();
+    reindex();
+    return;
+  }
+  const j = store.open.findIndex(e => e.t === t);
+  if (j >= 0) { store.open.splice(j, 1); save(); }
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -289,6 +340,12 @@ function go(screen) {
     disarmTile();
     ui.histX = 0;
     histSlider.stop();
+    // A meal left open - across a reload, even - is picked back up where it stood.
+    ui.display = '0';
+    ui.pending = null;
+    ui.op = null;
+    ui.fresh = true;
+    ui.showTotal = openTotal() > 0;
   }
   if (screen !== 'home') ui.picker = false;
   // Stats always opens where it rests: a scrub is a way of looking around, not a place.
@@ -465,6 +522,7 @@ function apply(a, b, op) {
 }
 
 function digit(d) {
+  ui.showTotal = false;
   if (ui.fresh) { ui.display = d === '.' ? '0.' : d; ui.fresh = false; return render(); }
   if (d === '.' && ui.display.indexOf('.') > -1) return;
   if (ui.display.replace('-', '').replace('.', '').length >= 4) return;
@@ -473,6 +531,7 @@ function digit(d) {
 }
 
 function setOp(op) {
+  ui.showTotal = false;
   const cur = parseFloat(ui.display) || 0;
   const next = ui.op != null && !ui.fresh ? apply(ui.pending, cur, ui.op) : cur;
   ui.pending = next;
@@ -482,7 +541,7 @@ function setOp(op) {
   render();
 }
 
-/** Returns true only when an entry was actually logged (not when an expression resolved). */
+/** Returns true only when an ingredient was added (not when an expression resolved). */
 function equals() {
   if (ui.op != null) {
     const cur = parseFloat(ui.display) || 0;
@@ -494,15 +553,23 @@ function equals() {
     return false;
   }
   const val = Math.round(parseFloat(ui.display) || 0);
-  if (!val) return false;
-  logEntry(val);
+  if (!val || !addIngredient(val)) return false;
   ui.display = '0';
   ui.fresh = true;
+  ui.showTotal = true;        // the dial now reads the meal, not this ingredient
   render();
   return true;
 }
 
+/** What the typed figure would add if it were committed now. */
+function typedValue() {
+  if (ui.showTotal) return 0;
+  const cur = parseFloat(ui.display) || 0;
+  return ui.op != null && !ui.fresh ? apply(ui.pending, cur, ui.op) : cur;
+}
+
 function del() {
+  ui.showTotal = false;
   if (ui.fresh) { ui.display = '0'; ui.fresh = true; return render(); }
   const d = ui.display.slice(0, -1);
   ui.display = d === '' || d === '-' ? '0' : d;
@@ -515,6 +582,7 @@ function clearCalc() {
   ui.pending = null;
   ui.op = null;
   ui.fresh = true;
+  ui.showTotal = false;
   render();
 }
 
@@ -537,14 +605,14 @@ function renderSegments(str) {
 function renderCalc() {
   const g = goal();
   const logged = viewLogged();
-  const cur = parseFloat(ui.display) || 0;
-  const preview = ui.op != null && !ui.fresh ? apply(ui.pending, cur, ui.op) : cur;
+  // The meal in hand counts toward the ring while it is being built, even though it
+  // has not reached the day's total yet - that is what committing it does.
   // The ring can only say 100%, but the readout says what it actually is.
-  const raw = (logged + Math.max(preview, 0)) / g;
+  const raw = (logged + openTotal() + Math.max(typedValue(), 0)) / g;
   const pct = clamp(raw, 0, 1);
 
   $('calc-pct-ink').textContent = Math.round(raw * 100) + '%';
-  renderSegments(ui.display);
+  renderSegments(ui.showTotal ? String(openTotal()) : ui.display);
 
   // Keep the arc's leading edge out of the type on the band. Half-covered, a word has no
   // single readable colour; snapped clear of it, one flat colour always works.
@@ -586,7 +654,7 @@ function renderCalc() {
   placeCap(capEl, cap);
   $('calc-arc-tail').style.display = on ? 'block' : 'none';
 
-  const entries = viewEntries().slice(-16);
+  const entries = viewEntries().concat(viewOpen()).slice(-16);
 
   // stripe marks: the leading triangle is static markup, one parallelogram per entry
   const marks = $('calc-marks');
@@ -599,13 +667,13 @@ function renderCalc() {
   $('calc-keypad').style.display = isCalc ? 'grid' : 'none';
   $('calc-history').style.display = isCalc ? 'none' : 'flex';
   $('calc-view-toggle').textContent = isCalc ? 'HISTORY' : 'CALCULATOR';
-  if (!isCalc) renderHistory(entries);
+  if (!isCalc) renderHistory();
 }
 
 // How long a tapped tile stays armed. Long enough not to be a race, short enough that
 // a tile left black is never stale: when the window shuts the tile goes back to red,
 // so what you see is always what a second tap would do.
-const ARM_MS = 2000;
+const ARM_MS = 1200;
 let armTimer = 0;
 document.documentElement.style.setProperty('--arm-ms', ARM_MS + 'ms');
 
@@ -632,8 +700,25 @@ const TILE_GAP = 8;
 const TILE_PITCH = TILE_W - TILE_SLANT + TILE_GAP;
 const HIST_W = 354;          // the strip, the canvas less its 24px margins
 
+const BRACKET_H = 34;        // headroom cut off the top of the tiles for the meal bars
+
+/** The day's ingredients in meals, oldest first, with the meal still open at the end. */
+function mealRows() {
+  const byMeal = new Map();
+  for (const e of viewEntries()) {
+    if (!byMeal.has(e.m)) byMeal.set(e.m, []);
+    byMeal.get(e.m).push(e);
+  }
+  const rows = [...byMeal.entries()].sort((a, b) => a[0] - b[0]).map(g => g[1]);
+  const open = viewOpen();
+  if (open.length) rows.push(open.slice());
+  return rows;
+}
+
+function histCount() { return viewEntries().length + viewOpen().length; }
+
 function histContent() {
-  const n = viewEntries().length;
+  const n = histCount();
   return n ? (n - 1) * TILE_PITCH + TILE_W : 0;
 }
 
@@ -642,11 +727,12 @@ function histOverflow() {
   return Math.max(0, histContent() - HIST_W);
 }
 
-function renderHistory(entries) {
+function renderHistory() {
   const host = $('calc-history');
   clear(host);
+  const rows = mealRows();
 
-  if (entries.length === 0) {
+  if (!histCount()) {
     host.appendChild(el('div',
       "color:#FF0000;font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;padding:6px 0",
       'NO ENTRIES TODAY'));
@@ -659,10 +745,31 @@ function renderHistory(entries) {
   ui.histX = clamp(ui.histX, 0, over);
   const track = el('div',
     'position:absolute;top:0;bottom:0;left:' + (over ? 0 : (HIST_W - histContent()) / 2).toFixed(2) +
-    'px;display:flex;align-items:stretch;gap:' + TILE_GAP + 'px;will-change:transform;' +
+    'px;width:' + histContent().toFixed(2) + 'px;will-change:transform;' +
     'transform:translateX(' + (-ui.histX).toFixed(2) + 'px)');
+  const strip = el('div',
+    'position:absolute;left:0;right:0;top:' + BRACKET_H + 'px;bottom:0;display:flex;' +
+    'align-items:stretch;gap:' + TILE_GAP + 'px');
+  track.appendChild(strip);
   host.appendChild(track);
 
+  let at = 0;
+  rows.forEach((items, mi) => {
+    // A tile's top edge runs from its slant to its full width, so a meal's bar spans
+    // from the first tile's top left corner to the last one's top right.
+    const x0 = at * TILE_PITCH + TILE_SLANT;
+    const x1 = (at + items.length - 1) * TILE_PITCH + TILE_W;
+    const span = 'position:absolute;left:' + x0.toFixed(2) + 'px;width:' + (x1 - x0).toFixed(2) + 'px;';
+    track.appendChild(el('div', span + 'top:' + (BRACKET_H - 9) + 'px;height:2px;background:#FF0000'));
+    track.appendChild(el('div',
+      span + "top:0;text-align:center;color:#FF0000;font:600 13px/1 'IBM Plex Mono',monospace;" +
+      'letter-spacing:.1em', String(mi + 1)));
+    at += items.length;
+    renderTiles(items, strip);
+  });
+}
+
+function renderTiles(entries, strip) {
   entries.forEach(e => {
     const on = ui.selTile === e.t;
     const tile = el('div',
@@ -692,7 +799,7 @@ function renderHistory(entries) {
       }
       render();
     });
-    track.appendChild(tile);
+    strip.appendChild(tile);
   });
 }
 
@@ -1027,9 +1134,17 @@ $('home-stats-btn').addEventListener('click', () => go('stats'));
 $('home-open-calc').addEventListener('click', () => go('calc'));
 $('stats-home-btn').addEventListener('click', () => go('home'));
 
-$('calc-close').addEventListener('click', () => { clearCalc(); go('home'); });
-// The dial doubles as "log it and get out" — resolving a pending expression keeps you here.
-$('calc-dial-btn').addEventListener('click', () => { if (equals()) go('home'); });
+// Leaving by the cross throws the meal away; nothing it held was ever committed.
+$('calc-close').addEventListener('click', () => { cancelMeal(); clearCalc(); go('home'); });
+
+// The dial finalises the meal. A figure typed but never added joins it first, so a
+// single-ingredient meal is still one tap.
+$('calc-dial-btn').addEventListener('click', () => {
+  addIngredient(typedValue());
+  if (!commitMeal()) return render();
+  clearCalc();
+  go('home');
+});
 $('calc-view-toggle').addEventListener('click', () => {
   ui.view = ui.view === 'calc' ? 'history' : 'calc';
   disarmTile();
