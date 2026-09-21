@@ -159,7 +159,10 @@ function save() {
 function setSaveBroken(on) {
   if (on === saveBroken) return;
   saveBroken = on;
-  $('alarm').style.display = on ? 'flex' : 'none';
+  // Raised from the bottom edge rather than switched on. This is the one message in the
+  // app that means something has gone wrong, and something that blinks into place reads
+  // as the screen glitching rather than as the app telling you anything.
+  $('alarm').classList.toggle('up', on);
 }
 
 /** Writes and removes a key of its own: the question is whether writing works at all,
@@ -587,6 +590,7 @@ function go(screen) {
   if (screen === 'calc') {
     ui.view = 'calc';
     calcJump = true;             // arriving at a figure, not watching one change
+    clearViewSlide();            // whatever was sliding is not what you are arriving at
     disarmTile();
     ui.histX = 0;
     histSlider.stop();
@@ -598,9 +602,11 @@ function go(screen) {
     ui.showTotal = openTotal() > 0;
   }
   if (screen !== 'home') ui.picker = false;
-  // Stats always opens where it rests: a scrub is a way of looking around, not a place.
+  // Stats always opens where it rests: the range and the scrub are both ways of looking
+  // around rather than places, so neither is carried back in from the last visit.
   if (screen === 'stats') {
     statsSlider.stop();
+    ui.range = RANGES[0];
     ui.scrub = 0; ui.selDay = null; ui.mealSelDay = null;
     // Arriving is the same kind of event as changing the range: a window onto days you
     // were not looking at a moment ago. It comes up out of the floor either way, and
@@ -694,28 +700,43 @@ function paintHomeArc(sweep) {
 
 const homeArc = makeEase(paintHomeArc);
 
+// ── the figure travels with its dial ──
+// A dial easing over half a second beside a figure that cuts leaves the two disagreeing
+// about the same fact for the whole of that half second. The figure gets an easer of
+// its own, set going in the same breath as the arc: makeEase covers the same fraction
+// of whatever is left on every frame, so two of them started together stay locked
+// however far apart their ends are.
+//
+// The sign is carried by the word rather than the figure, so the word turns over as the
+// figure passes zero rather than when it arrives.
+const homeNum = makeEase(v => {
+  $('home-left-cap').textContent = v < -0.5 ? 'Over:' : 'Left:';
+  $('home-left-val').textContent = String(Math.abs(Math.round(v)));
+});
+
 function renderHome() {
   // The day on show was kept to the maximum that was in force on it, not to the one
   // in force now - which is also the figure the sheet edits while it is the day on show.
   const g = goalOn(ui.day);
   const logged = viewLogged();
 
-  // Left of the maximum, or past it. "Left: -212" is a double negative to read through;
-  // the word carries the sign so the figure never has to.
-  $('home-left-cap').textContent = logged > g ? 'Over:' : 'Left:';
-  $('home-left-val').textContent = String(Math.abs(Math.round(g - logged)));
   $('home-max').textContent = g + ' cal maximum.';
   $('home-day').textContent = dayLabel(ui.day);
   renderPicker();
 
+  // Left of the maximum, or past it. "Left: -212" is a double negative to read through;
+  // the word carries the sign so the figure never has to.
+  const left = g - logged;
   const target = clamp(logged / g, 0, 1) * HOME_SPAN;
   // Only a meal just committed has anywhere to travel from; every other way onto this
   // screen is arriving at a figure, not watching one change.
   if (ui.animHome) {
     ui.animHome = false;
     homeArc.hold(target, SLIDE_MS);
+    homeNum.hold(left, SLIDE_MS);
   } else {
     homeArc.to(target, true);
+    homeNum.to(left, true);
   }
 }
 
@@ -921,11 +942,17 @@ function renderCalendar() {
 // calendar rather than a redraw of it. Two panes travel - the month and year, and the
 // grid of days. The numeral and the weekday above them read the selected day, which
 // paging does not change, so they stay exactly where they are.
-const CAL_MS = 240;
+// PANE_MS is shared with the keypad and the history, which slide past each other the
+// same way and for the same reason: both are a piece of a screen moving, not a screen.
+const PANE_MS = 240;
+// And the two things that are raised into view rather than switched on: the selected
+// day's times, and the warning that nothing is being kept.
+const RAISE_MS = 200;
+document.documentElement.style.setProperty('--raise-ms', RAISE_MS + 'ms');
 const CAL_PANES = ['cal-monthbox', 'cal-grid'];
 let calGhosts = [];
 let calTimer = 0;
-document.documentElement.style.setProperty('--cal-ms', CAL_MS + 'ms');
+document.documentElement.style.setProperty('--pane-ms', PANE_MS + 'ms');
 
 function clearGhosts() {
   for (const g of calGhosts) g.remove();
@@ -954,19 +981,19 @@ function slideMonth(step) {
   }
 
   render();                                  // the month that has arrived, in place
-  const out = step > 0 ? 'cal-out-left' : 'cal-out-right';
-  const inn = step > 0 ? 'cal-in-right' : 'cal-in-left';
+  const out = step > 0 ? 'pane-out-left' : 'pane-out-right';
+  const inn = step > 0 ? 'pane-in-right' : 'pane-in-left';
   for (const g of calGhosts) g.classList.add(out);
   for (const id of CAL_PANES) {
     const node = $(id);
     // Removed first, or a second page in the same direction would find the animation
     // already running and leave the pane sitting where it is.
-    node.classList.remove('cal-in-left', 'cal-in-right');
+    node.classList.remove('pane-in-left', 'pane-in-right');
     void node.offsetWidth;
     node.classList.add(inn);
   }
   clearTimeout(calTimer);
-  calTimer = setTimeout(clearGhosts, CAL_MS + 40);
+  calTimer = setTimeout(clearGhosts, PANE_MS + 40);
 }
 
 function shiftMonth(delta) {
@@ -1099,6 +1126,7 @@ function paintCalcArc(sweep) {
 }
 
 const calcArc = makeEase(paintCalcArc);
+const calcNum = makeEase(v => { $('calc-pct-ink').textContent = Math.round(v) + '%'; });
 
 function renderCalc() {
   const g = goalOn(ui.day);
@@ -1109,6 +1137,10 @@ function renderCalc() {
   const raw = (logged + openTotal() + Math.max(typedValue(), 0)) / g;
   const pct = clamp(raw, 0, 1);
 
+  // Written out at the figure it is bound for before anything measures it: the arc's
+  // forbidden zones are read off this box below, and they have to be the zones the
+  // readout will actually occupy, not the ones it happens to occupy in passing. The
+  // easer takes it over at the end of the render and carries it there.
   $('calc-pct-ink').textContent = Math.round(raw * 100) + '%';
   renderSegments(ui.showTotal ? String(openTotal()) : ui.display);
 
@@ -1133,6 +1165,7 @@ function renderCalc() {
     }
   }
   calcArc.to(sweep, calcJump);
+  calcNum.to(raw * 100, calcJump);
   calcJump = false;
 
   const entries = viewEntries().concat(viewOpen()).slice(-16);
@@ -1144,11 +1177,57 @@ function renderCalc() {
     marks.appendChild(el('div', 'width:7px;flex:none;background:#FF0000;transform:skewX(-45deg)'));
   }
 
+  // Both are on show for as long as one is sliding out from under the other.
   const isCalc = ui.view === 'calc';
-  $('calc-keypad').style.display = isCalc ? 'grid' : 'none';
-  $('calc-history').style.display = isCalc ? 'none' : 'flex';
+  const on = v => v === ui.view || v === viewLeaving;
+  $('calc-keypad').style.display = on('calc') ? 'grid' : 'none';
+  $('calc-history').style.display = on('history') ? 'flex' : 'none';
   $('calc-view-toggle').textContent = isCalc ? 'HISTORY' : 'CALCULATOR';
-  if (!isCalc) renderHistory();
+  if (on('history')) renderHistory();
+}
+
+// ── the keypad and the history ──────────────────────────────────────────────
+// They stand in the same place and used to swap by being switched off and on. The
+// history is the keypad's other side, so it comes in from the right and the keypad
+// leaves to the left, which is the direction every other move in the app already uses
+// for going further in. Only these two travel: the stripe row above them and the word
+// that turns them over belong to the screen, not to either view.
+const VIEW_PANE = { calc: 'calc-keypad', history: 'calc-history' };
+let viewLeaving = null;      // the view on its way out, still on show
+let viewTimer = 0;
+
+function clearViewSlide() {
+  clearTimeout(viewTimer);
+  for (const id of Object.values(VIEW_PANE)) {
+    $(id).classList.remove('pane-in-left', 'pane-in-right', 'pane-out-left', 'pane-out-right');
+  }
+  viewLeaving = null;
+}
+
+function slideView(from, to) {
+  clearViewSlide();
+  if (stillMotion && stillMotion.matches) return render();
+  viewLeaving = from;
+  render();                                  // both in place, neither moving yet
+  const out = $(VIEW_PANE[from]);
+  const inn = $(VIEW_PANE[to]);
+  void inn.offsetWidth;
+  const fwd = to === 'history';
+  out.classList.add(fwd ? 'pane-out-left' : 'pane-out-right');
+  inn.classList.add(fwd ? 'pane-in-right' : 'pane-in-left');
+  viewTimer = setTimeout(() => { clearViewSlide(); render(); }, PANE_MS + 20);
+}
+
+function toggleView() {
+  const from = ui.view;
+  const to = from === 'calc' ? 'history' : 'calc';
+  disarmTile();
+  histSlider.stop();
+  // Reset where the row rests only as it comes in. Doing it on the way out would snap
+  // the pane back to its start in front of you before it had finished leaving.
+  if (to === 'history') ui.histX = 0;
+  ui.view = to;
+  slideView(from, to);
 }
 
 // How long a tapped tile stays armed. Long enough not to be a race, short enough that
@@ -1250,6 +1329,31 @@ function renderHistory() {
   });
 }
 
+// ── the tile you just took out ──────────────────────────────────────────────
+// Removing one used to happen in a single frame: it went and the row closed over it at
+// once, which left you unsure which of them you had actually deleted. The tile now goes
+// first, where it stands, and the row closes after - two events instead of one, and the
+// first of them says which.
+//
+// It goes out where it is rather than collapsing its width: the bracket and the meal
+// number above the row are placed from the tiles' positions, and a row closing under
+// them would leave them behind until the rebuild caught up.
+const TILE_GONE = 170;
+
+function dropTile(t, node) {
+  disarmTile();
+  if (stillMotion && stillMotion.matches) { removeEntry(t); render(); return; }
+  // Its armed countdown is running and would hand the colour back part way out; the
+  // class goes and the tile holds the black it was tapped in.
+  node.classList.remove('armed');
+  node.style.transition = 'opacity ' + TILE_GONE + 'ms linear, transform ' +
+    TILE_GONE + 'ms cubic-bezier(.4,0,1,1)';
+  node.style.pointerEvents = 'none';
+  node.style.opacity = '0';
+  node.style.transform = 'scale(.86)';
+  setTimeout(() => { removeEntry(t); render(); }, TILE_GONE);
+}
+
 function renderTiles(entries, strip) {
   entries.forEach(e => {
     const on = ui.selTile === e.t;
@@ -1272,13 +1376,8 @@ function renderTiles(entries, strip) {
     // by target, and the first tap rebuilds this row, so the node it landed on is gone
     // before the second arrives - which is why deleting only worked about half the time.
     tile.addEventListener('click', () => {
-      if (ui.selTile === e.t) {
-        disarmTile();
-        removeEntry(e.t);
-      } else {
-        armTile(e.t);
-      }
-      render();
+      if (ui.selTile === e.t) dropTile(e.t, tile);
+      else { armTile(e.t); render(); }
     });
     strip.appendChild(tile);
   });
@@ -1307,6 +1406,8 @@ let statsGrow = false;
 let statsRise = [];
 let growHold = false;        // the screen is still sliding in; let it land first
 let growTimer = 0;
+let growHero = null;         // the figure over the bars, to be counted up with them
+let countRaf = 0;
 
 /** Arms the wave for the next render. Held back when a slide has to land first. */
 function growStats(hold) {
@@ -1314,6 +1415,26 @@ function growStats(hold) {
   statsGrow = !(stillMotion && stillMotion.matches);
   growHold = statsGrow && !!hold;
   statsRise = [];
+}
+
+/**
+ * The figure over the bars, counted up rather than set. It runs to a fixed length
+ * instead of easing towards a moving target the way the dials' figures do, because
+ * this one is something the screen does on arriving and not a value being chased:
+ * nothing can change it part way through except another arrival, which restarts it.
+ */
+function countHero(to, ms) {
+  cancelAnimationFrame(countRaf);
+  const node = $('stats-hero-value');
+  const t0 = performance.now();
+  const tick = now => {
+    const k = Math.min(1, (now - t0) / ms);
+    // The same slowing-in as the bars, so the figure and the chart settle together.
+    node.textContent = nf(Math.round(to * (1 - Math.pow(1 - k, 3))));
+    if (k < 1) countRaf = requestAnimationFrame(tick);
+  };
+  node.textContent = nf(0);
+  countRaf = requestAnimationFrame(tick);
 }
 
 /** How long the slot at j waits, as a share of the way across the visible run. */
@@ -1497,8 +1618,15 @@ function renderStats() {
     statsGrow = false;
     void $('stats-bars').offsetWidth;
     const rise = statsRise;
+    const hero = growHero;
     statsRise = [];
-    const release = () => { for (const [node, prop, v] of rise) node.style[prop] = v; };
+    growHero = null;
+    const release = () => {
+      for (const [node, prop, v] of rise) node.style[prop] = v;
+      // The last slot sets off GROW_WAVE after the first, so the figure has the whole
+      // of the wave to count through rather than only one bar's worth of it.
+      if (hero != null) countHero(hero, GROW_MS + GROW_WAVE);
+    };
     clearTimeout(growTimer);
     // Arrived by a slide: the screen comes in empty and fills once it is standing
     // still, the same way the dial on Home waits for its screen before it travels.
@@ -1615,7 +1743,18 @@ function updateHero() {
           ' ' + dayAt(selBar.d).getDate() + ' ' + mon(selBar.d).toUpperCase()
         : 'WEEK OF ' + dayAt(selBar.d).getDate() + ' ' + mon(selBar.d).toUpperCase())
     : 'AVERAGE PER ' + ui.range.replace('D', ' DAYS').replace('1Y', 'YEAR');
-  $('stats-hero-value').textContent = nf(selBar ? selBar.v : avg);
+
+  // Out of the floor with the bars when the screen is arriving; straight to the figure
+  // under a finger, where it is tracking the drag and has to keep up with it.
+  const v = selBar ? selBar.v : avg;
+  if (statsGrow) {
+    growHero = v;
+    cancelAnimationFrame(countRaf);
+    $('stats-hero-value').textContent = nf(0);
+  } else {
+    cancelAnimationFrame(countRaf);
+    $('stats-hero-value').textContent = nf(v);
+  }
 }
 
 function renderMeals() {
@@ -1700,9 +1839,12 @@ function renderMeals() {
   }
 
   // selected-day detail panel (30D and denser)
+  // Kept in the layout and raised into view rather than switched on, so it comes up
+  // out of the panel's own edge and goes back down into it with what it was saying
+  // still on it. Its contents are left alone on the way out for the same reason.
   const panel = $('stats-sel-times');
   const showPanel = selCol != null && !inDots;
-  panel.style.display = showPanel ? 'flex' : 'none';
+  panel.classList.toggle('up', showPanel);
   if (showPanel) {
     panel.style.top = (37 + ROWS * (cfg.dot + cfg.dg) + 14) + 'px';
     $('stats-sel-caption').textContent = selCol.v + (selCol.v === 1 ? ' MEAL' : ' MEALS');
@@ -2085,13 +2227,7 @@ $('calc-dial-btn').addEventListener('click', () => {
   if (commitMeal()) ui.animHome = true;
   go('home');
 });
-$('calc-view-toggle').addEventListener('click', () => {
-  ui.view = ui.view === 'calc' ? 'history' : 'calc';
-  disarmTile();
-  ui.histX = 0;
-  histSlider.stop();
-  render();
-});
+$('calc-view-toggle').addEventListener('click', toggleView);
 
 $('calc-keypad').addEventListener('click', e => {
   const btn = e.target.closest('[data-key]');

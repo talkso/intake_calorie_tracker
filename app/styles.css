@@ -240,33 +240,63 @@ input.set-val:focus { color: #FF0000; }
   #ask-scrim, #ask-panel { transition: none; }
 }
 
+/* ── things that come up rather than appear ──
+   Both live in the layout all the time and are raised into view, so what arrives has
+   somewhere to have arrived from. Out of the way they take no taps, which is the whole
+   of the difference display:none used to make. */
+#stats-sel-times, #alarm {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--raise-ms, 200ms) ease-out,
+              transform var(--raise-ms, 200ms) cubic-bezier(.22, .61, .36, 1);
+}
+
+#stats-sel-times { transform: translateY(22px); }
+#alarm { transform: translateY(14px); }
+
+#stats-sel-times.up, #alarm.up {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #stats-sel-times, #alarm { transition: none; }
+}
+
 .dot-btn { cursor: pointer; }
 .dot-btn:active { opacity: .55; }
 
 .cal-cell { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .cal-cell:active { transform: scale(.92); }
 
-/* ── paging the month ──
-   402px is the width of the whole canvas, which is further than either pane has to go
-   from where it sits to be off the screen entirely. The screen clips, so the pane is
-   gone the moment it passes the edge rather than crossing the letterbox. */
-@keyframes cal-in-right  { from { transform: translateX(402px); } }
-@keyframes cal-in-left   { from { transform: translateX(-402px); } }
-@keyframes cal-out-left  { to   { transform: translateX(-402px); } }
-@keyframes cal-out-right { to   { transform: translateX(402px); } }
+/* ── panes sliding across each other ──
+   A month paged in the log, and the keypad giving way to the history. Not whole screens
+   but a piece of one, so they cannot use the screen slide: these move only themselves
+   and leave everything around them standing.
 
-.cal-in-right, .cal-in-left, .cal-out-left, .cal-out-right {
-  animation-duration: var(--cal-ms, 240ms);
+   402px is the width of the whole canvas, which is further than any of these panes has
+   to go from where it sits to be off the screen entirely. The screen clips, so a pane
+   is gone the moment it passes the edge rather than crossing the letterbox. */
+@keyframes pane-in-right  { from { transform: translateX(402px); } }
+@keyframes pane-in-left   { from { transform: translateX(-402px); } }
+@keyframes pane-out-left  { to   { transform: translateX(-402px); } }
+@keyframes pane-out-right { to   { transform: translateX(402px); } }
+
+.pane-in-right, .pane-in-left, .pane-out-left, .pane-out-right {
+  animation-duration: var(--pane-ms, 240ms);
   animation-timing-function: cubic-bezier(.22, .61, .36, 1);
   animation-fill-mode: both;
 }
-.cal-in-right  { animation-name: cal-in-right; }
-.cal-in-left   { animation-name: cal-in-left; }
-.cal-out-left  { animation-name: cal-out-left; }
-.cal-out-right { animation-name: cal-out-right; }
+.pane-in-right  { animation-name: pane-in-right; }
+.pane-in-left   { animation-name: pane-in-left; }
+/* On its way out it is only a picture of where you were; a tap belongs to what is
+   arriving, or to nothing. */
+.pane-out-left  { animation-name: pane-out-left; pointer-events: none; }
+.pane-out-right { animation-name: pane-out-right; pointer-events: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .cal-in-right, .cal-in-left, .cal-out-left, .cal-out-right { animation: none; }
+  .pane-in-right, .pane-in-left, .pane-out-left, .pane-out-right { animation: none; }
 }
 
 /* Bare glyphs rather than filled pills - the month block is the only thing that

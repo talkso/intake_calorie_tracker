@@ -217,7 +217,7 @@
 
     <div id="stats-meal-cols" class="scrubbable track" style="position:absolute;left:24px;right:24px;top:37px;height:176px"></div>
 
-    <div id="stats-sel-times" style="position:absolute;left:-2px;right:-2px;top:235px;bottom:118px;background:#270E0E;padding:14px 26px;box-sizing:border-box;display:none;flex-direction:column;justify-content:flex-start;gap:12px;overflow:hidden">
+    <div id="stats-sel-times" style="position:absolute;left:-2px;right:-2px;top:235px;bottom:118px;background:#270E0E;padding:14px 26px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-start;gap:12px;overflow:hidden">
       <div id="stats-sel-caption" style="color:#FF0000;font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.2em;white-space:nowrap"></div>
       <div id="stats-sel-list" style="display:flex;flex-wrap:wrap;gap:8px 20px;align-items:flex-end"></div>
     </div>
@@ -282,7 +282,7 @@
 <!-- Shown only when a write has actually failed, which means the app is still working
      but is no longer keeping anything. It sits over the screen rather than in it, and
      leads to the sheet, because exporting is the only thing left that will keep a day. -->
-<div id="alarm" style="position:absolute;left:24px;right:24px;bottom:16px;z-index:30;display:none;align-items:center;justify-content:center;height:34px;border-radius:10px;background:#270E0E;color:#FF0000;font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;cursor:pointer" role="status">NOT SAVING — EXPORT TO KEEP THIS</div>
+<div id="alarm" style="position:absolute;left:24px;right:24px;bottom:16px;z-index:30;display:flex;align-items:center;justify-content:center;height:34px;border-radius:10px;background:#270E0E;color:#FF0000;font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;cursor:pointer" role="status">NOT SAVING — EXPORT TO KEEP THIS</div>
 
 <!-- Asked in the middle of the screen, over everything, with the screen behind it put
      out: the two answers are the only things on it, and they are nowhere near the word
