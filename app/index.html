@@ -265,13 +265,21 @@
         <div id="set-data-cap" class="set-cap">DATA</div>
         <div id="set-export" class="set-val set-act">EXPORT</div>
         <div id="set-import" class="set-val set-act">IMPORT</div>
-        <div id="set-delete" class="set-val set-act">DELETE</div>
       </div>
+
+      <!-- Out of the list and on its own, with more air above it than anything else on
+           the sheet: it belongs to none of the words it used to sit under. -->
+      <div id="set-delete" class="set-val set-act" style="margin-top:12px">DELETE</div>
     </div>
 
     <input type="file" id="set-file" accept="application/json,.json" style="display:none" aria-hidden="true" tabindex="-1">
   </div>
 </div>
+
+<!-- Shown only when a write has actually failed, which means the app is still working
+     but is no longer keeping anything. It sits over the screen rather than in it, and
+     leads to the sheet, because exporting is the only thing left that will keep a day. -->
+<div id="alarm" style="position:absolute;left:24px;right:24px;bottom:16px;z-index:30;display:none;align-items:center;justify-content:center;height:34px;border-radius:10px;background:#270E0E;color:#FF0000;font:600 10px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;cursor:pointer" role="status">NOT SAVING — EXPORT TO KEEP THIS</div>
 
 <!-- Asked in the middle of the screen, over everything, with the screen behind it put
      out: the two answers are the only things on it, and they are nowhere near the word
@@ -279,7 +287,11 @@
 <div id="ask" style="position:absolute;inset:0;z-index:50;display:none" role="dialog" aria-modal="true" aria-labelledby="ask-text">
   <div id="ask-scrim" style="position:absolute;inset:0;background:rgba(39,14,14,.55)"></div>
 
-  <div id="ask-panel" style="position:absolute;left:24px;right:24px;top:50%;background:#FF0000;border-radius:16px;padding:26px 24px 24px;box-sizing:border-box">
+  <!-- Held by its bottom edge rather than its middle, because that edge is the one that
+       has to land somewhere: clear of the month below it, and far enough past the month
+       arrows above it that they sit against a straight edge and not a rounded corner.
+       Anchored this way, a longer question grows upwards and neither stops being true. -->
+  <div id="ask-panel" style="position:absolute;left:24px;right:24px;bottom:346px;background:#FF0000;border-radius:16px;padding:26px 24px 24px;box-sizing:border-box">
     <div id="ask-text" style="color:#270E0E;font:900 27px/1.06 Archivo,sans-serif;letter-spacing:-.03em">THIS WILL DELETE ALL STORED DATA.</div>
     <!-- Solid rather than faded: dark on red at any less than full strength goes muddy
          long before it goes quiet, which is what the small size is already for. -->

@@ -104,8 +104,53 @@ function normalize(parsed) {
   };
 }
 
+// A write can fail for reasons the app cannot do anything about - private browsing, an
+// origin the browser has blocked, a full disk. It goes on working either way, since a
+// session that still counts is better than one that refuses to; but a day that is not
+// being kept must never look like a day that is.
+let saveBroken = false;
+
 function save() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { /* private mode */ }
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify(store));
+    setSaveBroken(false);
+  } catch (e) {
+    setSaveBroken(true);
+  }
+}
+
+function setSaveBroken(on) {
+  if (on === saveBroken) return;
+  saveBroken = on;
+  $('alarm').style.display = on ? 'flex' : 'none';
+}
+
+/** Writes and removes a key of its own: the question is whether writing works at all,
+    and the answer must not be bought at the price of the one thing worth keeping. */
+function probeStorage() {
+  try {
+    localStorage.setItem(STORE_KEY + '.probe', '1');
+    localStorage.removeItem(STORE_KEY + '.probe');
+    setSaveBroken(false);
+  } catch (e) {
+    setSaveBroken(true);
+  }
+}
+
+/**
+ * Storage an origin has not been granted persistence for is "best effort": when the
+ * device runs short of room the browser evicts it, oldest-used first, without asking.
+ * Asking to be exempt costs nothing when it is refused, and is granted silently by some
+ * browsers on the strength of the app being installed or used often.
+ *
+ * It is not a guarantee of anything. It does not survive the browser's data being
+ * cleared, and on WebKit a site left alone for seven days is cleared regardless - which
+ * is what adding the app to the home screen, rather than this, is the answer to.
+ */
+function askToPersist() {
+  const s = navigator.storage;
+  if (!s || !s.persist || !s.persisted) return;
+  s.persisted().then(has => (has ? true : s.persist())).catch(() => {});
 }
 
 // ── ephemeral state ──────────────────────────────────────────────────────────
@@ -1523,6 +1568,9 @@ for (const id of ['home-settings-btn', 'cal-settings-btn', 'calc-settings-btn', 
 // No button to close it: the sheet is pushed back down, or the screen it came up over
 // is tapped. Both are the same gesture read two ways, and neither is a control.
 $('settings-scrim').addEventListener('click', closeSettings);
+
+// The warning leads to the only thing that will keep a day when storage will not.
+$('alarm').addEventListener('click', openSettings);
 $('set-start-prev').addEventListener('click', () => shiftStart(-1));
 $('set-start-next').addEventListener('click', () => shiftStart(1));
 $('set-goal').addEventListener('input', typeGoal);
@@ -1898,6 +1946,8 @@ setInterval(() => {
 }, 60000);
 
 reindex();
+probeStorage();
+askToPersist();
 ensureStart();
 layout();
 go('home');

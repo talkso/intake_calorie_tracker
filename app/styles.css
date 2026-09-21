@@ -210,13 +210,13 @@ input.set-val:focus { color: #FF0000; }
 
 #ask-panel {
   opacity: 0;
-  transform: translateY(-50%) scale(.94);
+  transform: scale(.94);
   transition: opacity var(--ask-ms, 180ms) ease-out,
               transform var(--ask-ms, 180ms) cubic-bezier(.22, .61, .36, 1);
 }
 
 #ask.open #ask-scrim { opacity: 1; }
-#ask.open #ask-panel { opacity: 1; transform: translateY(-50%) scale(1); }
+#ask.open #ask-panel { opacity: 1; transform: scale(1); }
 
 .ask-btn { -webkit-tap-highlight-color: transparent; }
 .ask-btn:active { box-shadow: inset 0 0 0 2.5px #270E0E, inset 0 0 0 54px #270E0E; color: #FF0000; }
