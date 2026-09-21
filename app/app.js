@@ -23,6 +23,13 @@ const RANGES = ['7D', '30D', '90D', '1Y'];
 const ROWS = 6;              // meal dots per column
 const GOAL_AT = 0.86;        // goal rule pinned at 86% of chart height in every range
 
+// The chart's own box, and the two grey rules the design runs above it - the only
+// things a goal rule can ever end up level with, since it is the one thing on the
+// screen that leaves the chart to reach them.
+const CHART_TOP = 236;
+const CHART_H = 248;
+const RULE_YS = [198, 234];
+
 // Both dials are pinned at a fixed point on the band and grow counter-clockwise, so the
 // round cap rides the leading edge rather than the tail. At the sweeps the prototype drew
 // (180.2deg home, 152deg calculator) every layer lands on its hand-placed position to
@@ -1177,9 +1184,21 @@ function renderGoalRule(end, cfg, geom, total, g) {
   for (let j = 1; j <= total; j++) {
     const v = j < total ? goalOn(dayOf(j)) : null;
     if (v === held) continue;
+    const left = (from * geom.pitch).toFixed(2);
+    const wide = ((j - from) * geom.pitch).toFixed(2);
+    // A maximum far enough above the one in force now puts its rule level with one of
+    // the grey lines above the chart. Two lines at the same height read as one line
+    // broken up, so the grey gives way for the length of the red and picks up after:
+    // laid on the same track, the break travels with the stretch it belongs to.
+    const y = CHART_H * (1 - pctOf(held) / 100) - 2;
+    if (RULE_YS.some(r => y < r + 1 - CHART_TOP && y + 2 > r - CHART_TOP)) {
+      track.appendChild(el('div',
+        'position:absolute;left:' + left + 'px;width:' + wide + 'px;top:' +
+        y.toFixed(2) + 'px;height:2px;background:#C0C3B0'));
+    }
     track.appendChild(el('div',
-      'position:absolute;left:' + (from * geom.pitch).toFixed(2) + 'px;width:' +
-      ((j - from) * geom.pitch).toFixed(2) + 'px;bottom:' + pctOf(held).toFixed(2) +
+      'position:absolute;left:' + left + 'px;width:' + wide +
+      'px;bottom:' + pctOf(held).toFixed(2) +
       '%;height:0;border-top:2px dashed #FF0000'));
     // Every stretch but the first is labelled where it starts, since the one label the
     // design pins at the left edge can only speak for the stretch it sits on.

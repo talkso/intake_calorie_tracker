@@ -182,8 +182,11 @@
     </div>
   </div>
 
-  <div style="position:absolute;left:24px;right:24px;top:198px;height:1px;background:#9BA08B;z-index:7"></div>
-  <div style="position:absolute;left:24px;right:24px;top:234px;height:1px;background:#9BA08B;z-index:7"></div>
+  <!-- Under the chart rather than over it. A goal line high enough to reach the lower
+       of these lands exactly on it, and the chart is then the thing that gives way for
+       it: the rule keeps its own colour everywhere the red is not. -->
+  <div id="stats-rule-1" style="position:absolute;left:24px;right:24px;top:198px;height:1px;background:#9BA08B;z-index:3"></div>
+  <div id="stats-rule-2" style="position:absolute;left:24px;right:24px;top:234px;height:1px;background:#9BA08B;z-index:3"></div>
 
   <div id="stats-chart" class="scrubbable" style="position:absolute;left:24px;right:24px;top:236px;height:248px;z-index:4">
     <div style="position:absolute;left:0;right:0;bottom:0;height:2px;background:#8F9482"></div>
