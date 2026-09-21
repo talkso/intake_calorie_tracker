@@ -95,7 +95,7 @@
   <div id="cal-daynum" style="position:absolute;left:22px;top:190px;z-index:9;color:#270E0E;font:900 124px/.78 Archivo,sans-serif;letter-spacing:-.055em">20</div>
 
   <div style="position:absolute;left:24px;right:24px;top:330px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;z-index:9">
-    <div style="min-width:0">
+    <div id="cal-monthbox" style="min-width:0">
       <div id="cal-month" style="color:#270E0E;font:900 27px/1 Archivo,sans-serif;letter-spacing:-.03em;white-space:nowrap">SEPT</div>
       <div id="cal-year" style="margin-top:5px;color:rgba(39,14,14,.4);font:900 27px/1 Archivo,sans-serif;letter-spacing:-.03em">2026</div>
     </div>
@@ -244,10 +244,21 @@
     <div style="position:absolute;left:50%;top:15px;margin-left:-22px;width:44px;height:4px;border-radius:2px;background:rgba(39,14,14,.22)"></div>
     <div style="position:absolute;left:0;right:0;top:46px;text-align:center;color:#270E0E;font:600 17px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;pointer-events:none">settings</div>
 
-    <div style="position:absolute;left:24px;right:24px;bottom:76px;display:flex;flex-direction:column;align-items:flex-end;gap:34px;text-align:right">
+    <!-- A disc that turns for as long as the sheet is up. The bites out of its rim are
+         what make the turning visible on a shape that is otherwise the same from every
+         angle; the circle at its centre is outside the turning part and stays still.
+         The bites are placed from the script, where the geometry is written down once. -->
+    <div id="set-disk" style="position:absolute;left:26px;top:116px;width:94px;height:94px;pointer-events:none" aria-hidden="true">
+      <div id="set-disk-spin" style="position:absolute;inset:0;border-radius:50%;background:#270E0E"></div>
+      <div style="position:absolute;left:31px;top:31px;width:32px;height:32px;border-radius:50%;background:#C0C3B0;display:flex;align-items:center;justify-content:center">
+        <div style="width:8px;height:8px;border-radius:50%;background:#270E0E"></div>
+      </div>
+    </div>
+
+    <div style="position:absolute;left:24px;right:24px;bottom:76px;display:flex;flex-direction:column;align-items:flex-end;gap:28px;text-align:right">
 
       <div style="align-self:stretch;display:flex;flex-direction:column;align-items:flex-end;gap:11px">
-        <div class="set-cap">MAXIMUM CALORIES</div>
+        <div id="set-goal-cap" class="set-cap">MAXIMUM CALORIES</div>
         <input id="set-goal" class="set-val" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" aria-label="Maximum calories" value="1,900">
       </div>
 
@@ -294,7 +305,7 @@
        has to land somewhere: clear of the month below it, and far enough past the month
        arrows above it that they sit against a straight edge and not a rounded corner.
        Anchored this way, a longer question grows upwards and neither stops being true. -->
-  <div id="ask-panel" style="position:absolute;left:24px;right:24px;bottom:346px;background:#FF0000;border-radius:16px;padding:26px 24px 24px;box-sizing:border-box">
+  <div id="ask-panel" style="position:absolute;left:24px;right:24px;bottom:313px;background:#FF0000;border-radius:16px;padding:26px 24px 24px;box-sizing:border-box">
     <div id="ask-text" style="color:#270E0E;font:900 27px/1.06 Archivo,sans-serif;letter-spacing:-.03em">THIS WILL DELETE ALL STORED DATA.</div>
     <!-- Solid rather than faded: dark on red at any less than full strength goes muddy
          long before it goes quiet, which is what the small size is already for. -->

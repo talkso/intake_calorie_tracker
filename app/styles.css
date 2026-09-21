@@ -126,8 +126,10 @@ body {
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
-  /* Tucked, each circle sits exactly on the badge; this is what carries it out and back. */
-  transition: transform var(--pick-ms, 300ms) cubic-bezier(.22, .61, .36, 1);
+  /* Each circle settles the last few pixels into place as it comes on, which is what
+     keeps the run from pressing together while it unfolds. */
+  transition: transform var(--pick-ms, 300ms) cubic-bezier(.22, .61, .36, 1),
+              opacity var(--pick-ms, 300ms) ease-out;
 }
 .day-opt:active { background-color: #270E0E !important; color: #FF0000 !important; }
 
@@ -183,7 +185,7 @@ body {
 }
 
 .set-val {
-  font: 900 44px/.9 Archivo, sans-serif;
+  font: 900 38px/.9 Archivo, sans-serif;
   letter-spacing: -.035em;
   color: #270E0E;
   margin: 0;
@@ -206,6 +208,19 @@ input.set-val {
   touch-action: auto;
 }
 input.set-val:focus { color: #FF0000; }
+
+/* Nothing else on the sheet moves, so this turns slowly enough to be furniture rather
+   than something asking to be looked at. */
+@keyframes set-disk-spin { to { transform: rotate(360deg); } }
+
+#set-disk-spin {
+  animation: set-disk-spin var(--disk-ms, 9000ms) linear infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #set-disk-spin { animation: none; }
+}
 
 .set-act { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .set-act:active { color: #FF0000; }
@@ -243,6 +258,29 @@ input.set-val:focus { color: #FF0000; }
 
 .cal-cell { cursor: pointer; user-select: none; -webkit-user-select: none; }
 .cal-cell:active { transform: scale(.92); }
+
+/* ── paging the month ──
+   402px is the width of the whole canvas, which is further than either pane has to go
+   from where it sits to be off the screen entirely. The screen clips, so the pane is
+   gone the moment it passes the edge rather than crossing the letterbox. */
+@keyframes cal-in-right  { from { transform: translateX(402px); } }
+@keyframes cal-in-left   { from { transform: translateX(-402px); } }
+@keyframes cal-out-left  { to   { transform: translateX(-402px); } }
+@keyframes cal-out-right { to   { transform: translateX(402px); } }
+
+.cal-in-right, .cal-in-left, .cal-out-left, .cal-out-right {
+  animation-duration: var(--cal-ms, 240ms);
+  animation-timing-function: cubic-bezier(.22, .61, .36, 1);
+  animation-fill-mode: both;
+}
+.cal-in-right  { animation-name: cal-in-right; }
+.cal-in-left   { animation-name: cal-in-left; }
+.cal-out-left  { animation-name: cal-out-left; }
+.cal-out-right { animation-name: cal-out-right; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cal-in-right, .cal-in-left, .cal-out-left, .cal-out-right { animation: none; }
+}
 
 /* Bare glyphs rather than filled pills - the month block is the only thing that
    should carry weight up there. The tap target stays 34px regardless. */

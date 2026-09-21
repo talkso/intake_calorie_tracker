@@ -250,7 +250,6 @@ const goal = () => store.goal;
 
 /** The maximum that was in force on a given day, which is what that day was kept to. */
 function goalOn(d) {
-  if (d <= 0) return store.goal;
   const end = dayAt(d);
   end.setHours(23, 59, 59, 999);
   let v = store.goals[0].v;
@@ -261,17 +260,51 @@ function goalOn(d) {
   return v;
 }
 
-function setGoal(v) {
+/** Midnight either side of a day, which is the span a change made on it covers. */
+function dayEdges(d) {
+  const from = dayAt(d);
+  from.setHours(0, 0, 0, 0);
+  return { t0: from.getTime(), t1: from.getTime() + 86399999 };
+}
+
+/** Index of the change in force on a given day. */
+function goalIndexOn(d) {
+  const t1 = dayEdges(d).t1;
+  let i = 0;
+  for (let k = 0; k < store.goals.length; k++) {
+    if (store.goals[k].t > t1) break;
+    i = k;
+  }
+  return i;
+}
+
+/**
+ * Sets the maximum from a day onwards - and only as far as the next change already on
+ * record, which stands. A week held to 1,900 that you later dropped to 1,600 on the
+ * Friday stays 1,600 from that Friday whatever the Tuesday is redrawn to; what changes
+ * is the stretch that was reading the figure you are editing, and nothing else.
+ *
+ * A day that already carries a change has that change rewritten rather than another
+ * one added: a figure tapped out a digit at a time is one decision, and a history of
+ * 1, 19, 190, 1900 would say nothing about what any day was held to.
+ */
+function setGoalOn(d, v) {
   const n = Math.round(v);
-  if (!(n > 0) || n === store.goal) return;
-  store.goal = n;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const last = store.goals[store.goals.length - 1];
-  // One change per day. A figure tapped out a digit at a time is one decision, and a
-  // history of 1, 19, 190, 1900 would say nothing about what any day was held to.
-  if (last && last.t >= today.getTime()) last.v = n;
-  else store.goals.push({ t: Date.now(), v: n });
+  if (!(n > 0)) return;
+  const i = goalIndexOn(d);
+  if (store.goals[i].v === n) return;        // that day already reads this
+  const t0 = dayEdges(d).t0;
+  if (store.goals[i].t >= t0) store.goals[i].v = n;
+  else store.goals.splice(i + 1, 0, { t: t0, v: n });
+  // A change that changes nothing is not a change, and the rule on the stats chart
+  // must only step where the figure actually moved.
+  const out = [store.goals[0]];
+  for (let k = 1; k < store.goals.length; k++) {
+    if (store.goals[k].v !== out[out.length - 1].v) out.push(store.goals[k]);
+  }
+  store.goals = out;
+  // Every change is dated today or earlier, so the last of them is the one in force.
+  store.goal = out[out.length - 1].v;
   save();
 }
 
@@ -569,6 +602,10 @@ function go(screen) {
   if (screen === 'stats') {
     statsSlider.stop();
     ui.scrub = 0; ui.selDay = null; ui.mealSelDay = null;
+    // Arriving is the same kind of event as changing the range: a window onto days you
+    // were not looking at a moment ago. It comes up out of the floor either way, and
+    // waits for the screen it is on to land first.
+    growStats(from !== screen);
   }
   ui.screen = screen;
   for (const s of SCREENS) {
@@ -658,7 +695,9 @@ function paintHomeArc(sweep) {
 const homeArc = makeEase(paintHomeArc);
 
 function renderHome() {
-  const g = goal();
+  // The day on show was kept to the maximum that was in force on it, not to the one
+  // in force now - which is also the figure the sheet edits while it is the day on show.
+  const g = goalOn(ui.day);
   const logged = viewLogged();
 
   // Left of the maximum, or past it. "Left: -212" is a double negative to read through;
@@ -688,23 +727,38 @@ const DAY_OPT_STYLE =
   'margin-bottom:' + (PICK_SIZE - PICK_STEP) * -1 + 'px;';
 
 // ── the day stack ──────────────────────────────────────────────────────────
-// The circles come out from under the badge, each a moment after the one above, and go
-// back the same way. Tucked, every one of them sits exactly on the badge, so the stack
-// reads as one thing unfolding rather than a list appearing over the screen.
+// The circles arrive one after another, each a moment after the one above it, and go
+// back the same way.
+//
+// They used to travel the whole way from the badge, which meant that for most of the
+// movement the stack was pressed tighter than it rests: consecutive circles overlapped
+// far past the 31px the design leaves them, and every word was sliced through by the
+// circle above it. Each one now settles the last few pixels into a place it is already
+// nearly in, so the run never closes up and no word is ever cut.
 const PICK_MS = 300;
-const PICK_LAG = 26;         // between one circle setting off and the next
+const PICK_LAG = 26;         // between one circle arriving and the next
+const PICK_RISE = 14;        // well inside the overlap, so nothing reaches a word
 let pickTuck = false;        // built tucked, to be let go on the next frame
 let pickClosing = false;
 let pickTimer = 0;
 document.documentElement.style.setProperty('--pick-ms', PICK_MS + 'ms');
 
+/** Where circle i stands before it has arrived - the first one is the badge itself. */
+function tuckStyle(i) {
+  return i === 0 ? '' : ';transform:translateY(' + -PICK_RISE + 'px);opacity:0';
+}
+
 function tuckStack(tucked, last) {
   const kids = [...$('home-picker-scroll').children];
   kids.forEach((opt, i) => {
+    // The first circle lands exactly on the badge and carries the same day, so it is
+    // simply there: the stack grows out from under it rather than over the top of it.
+    if (i === 0) return;
     // Out from the top down, back in from the bottom up: either way the one nearest
-    // the badge moves first and the stack folds rather than slides.
-    opt.style.transitionDelay = ((last ? kids.length - 1 - i : i) * PICK_LAG) + 'ms';
-    opt.style.transform = tucked ? 'translateY(' + (-i * PICK_STEP) + 'px)' : 'translateY(0)';
+    // the badge is the last to leave, and the stack folds rather than blinks out.
+    opt.style.transitionDelay = ((last ? kids.length - 1 - i : i - 1) * PICK_LAG) + 'ms';
+    opt.style.transform = tucked ? 'translateY(' + -PICK_RISE + 'px)' : 'translateY(0)';
+    opt.style.opacity = tucked ? '0' : '1';
   });
   $('home-cal-btn').style.opacity = tucked ? '0' : '1';
   return kids;
@@ -763,7 +817,7 @@ function renderPicker() {
   for (let i = 0; i <= last; i++) {
     const day = i <= PICK_DAYS ? i : null;
     const opt = el('div', DAY_OPT_STYLE + 'z-index:' + (last - i) +
-      (pickTuck ? ';transform:translateY(' + (-i * PICK_STEP) + 'px)' : ''),
+      (pickTuck ? tuckStyle(i) : ''),
       day === null ? 'LOG.' : dayLabel(day));
     opt.className = 'day-opt';
     opt.addEventListener('click', () => {
@@ -785,22 +839,18 @@ function renderPicker() {
 // ══════════════════════════ CALENDAR ══════════════════════════
 function monthStart(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 
-/** The earliest month the calendar will page back to: where the log is set to begin,
-    or the month of the oldest entry if something older than that was imported. */
+/** The earliest month the calendar will page back to: where the log is set to begin.
+    Anything older than that is kept, and simply not shown. */
 function calFloor() {
-  const set = monthStart(new Date(Number.isFinite(store.start) ? store.start : Date.now()));
-  if (!store.entries.length) return set;
-  const first = monthStart(new Date(store.entries[0].t));
-  return first < set ? first : set;
+  return monthStart(new Date(Number.isFinite(store.start) ? store.start : Date.now()));
 }
 
-/** The latest the log may be said to begin: never past this month, and never past
-    something already logged, which moving it forward would put out of reach. */
+/** The latest the log may be said to begin: this month. Moving it past days already
+    logged is allowed and takes nothing away - those days stay in the store, out of
+    sight, and moving it back again brings them into view exactly as they were. Only
+    DELETE removes anything, and it says so first. */
 function startCeil() {
-  const now = monthStart(new Date());
-  if (!store.entries.length) return now;
-  const first = monthStart(new Date(store.entries[0].t));
-  return first < now ? first : now;
+  return monthStart(new Date());
 }
 
 // Shortened only where the full name is long enough to need it.
@@ -866,12 +916,65 @@ function renderCalendar() {
   $('cal-prev').classList.toggle('off', m <= calFloor());
 }
 
+// ── paging the month ────────────────────────────────────────────────────────
+// The month leaves the way the next one arrives, so paging reads as a move along the
+// calendar rather than a redraw of it. Two panes travel - the month and year, and the
+// grid of days. The numeral and the weekday above them read the selected day, which
+// paging does not change, so they stay exactly where they are.
+const CAL_MS = 240;
+const CAL_PANES = ['cal-monthbox', 'cal-grid'];
+let calGhosts = [];
+let calTimer = 0;
+document.documentElement.style.setProperty('--cal-ms', CAL_MS + 'ms');
+
+function clearGhosts() {
+  for (const g of calGhosts) g.remove();
+  calGhosts = [];
+}
+
+function slideMonth(step) {
+  if (stillMotion && stillMotion.matches) return render();
+  clearGhosts();
+  // A still copy of each pane, left standing exactly where the pane is, for the month
+  // on its way out to leave on. Each one goes next to the pane it copies, so the
+  // coordinates it is given are read against the same corner the pane's were.
+  for (const id of CAL_PANES) {
+    const node = $(id);
+    const ghost = node.cloneNode(true);
+    // Every name in the copy is given up, not just the pane's own: two elements
+    // answering to cal-month would leave the render writing into whichever the
+    // document happened to reach first.
+    ghost.removeAttribute('id');
+    for (const kid of ghost.querySelectorAll('[id]')) kid.removeAttribute('id');
+    ghost.style.cssText += ';position:absolute;margin:0;right:auto;bottom:auto;' +
+      'pointer-events:none;left:' + node.offsetLeft + 'px;top:' + node.offsetTop +
+      'px;width:' + node.offsetWidth + 'px';
+    node.parentNode.appendChild(ghost);
+    calGhosts.push(ghost);
+  }
+
+  render();                                  // the month that has arrived, in place
+  const out = step > 0 ? 'cal-out-left' : 'cal-out-right';
+  const inn = step > 0 ? 'cal-in-right' : 'cal-in-left';
+  for (const g of calGhosts) g.classList.add(out);
+  for (const id of CAL_PANES) {
+    const node = $(id);
+    // Removed first, or a second page in the same direction would find the animation
+    // already running and leave the pane sitting where it is.
+    node.classList.remove('cal-in-left', 'cal-in-right');
+    void node.offsetWidth;
+    node.classList.add(inn);
+  }
+  clearTimeout(calTimer);
+  calTimer = setTimeout(clearGhosts, CAL_MS + 40);
+}
+
 function shiftMonth(delta) {
   const m = ui.calMonth || monthStart(new Date());
   const next = new Date(m.getFullYear(), m.getMonth() + delta, 1);
   if (next > monthStart(new Date()) || next < calFloor()) return;
   ui.calMonth = next;
-  render();
+  slideMonth(delta);
 }
 
 // ══════════════════════════ CALCULATOR ══════════════════════════
@@ -998,7 +1101,7 @@ function paintCalcArc(sweep) {
 const calcArc = makeEase(paintCalcArc);
 
 function renderCalc() {
-  const g = goal();
+  const g = goalOn(ui.day);
   const logged = viewLogged();
   // The meal in hand counts toward the ring while it is being built, even though it
   // has not reached the day's total yet - that is what committing it does.
@@ -1193,14 +1296,25 @@ const TODAY_AT = 4.5 / 7;    // where Friday's slot centres in a row of seven
 const futureSlots = cfg => Math.max(1, Math.round(cfg.n * (1 - TODAY_AT) - 0.5));
 
 // ── coming up out of the floor ──────────────────────────────────────────────
-// Changing the range is a change of subject, not of scale: the whole screen is about
-// different days than it was a moment ago. Everything on it comes up from nothing, in
-// a wave across the window, so what arrives is read rather than assumed to be what was
-// there before. Only on the range, though - a scrub rebuilds these constantly.
+// Arriving on this screen, and changing the range once you are on it, are the same kind
+// of event: a window onto days you were not looking at a moment ago. Everything on it
+// comes up from nothing, in a wave across the window, so what arrives is read rather
+// than assumed to be what was there before. Not on a scrub, though - that rebuilds
+// these constantly, and a chart that reset under the finger would be unreadable.
 const GROW_MS = 420;
 const GROW_WAVE = 200;       // from the first slot setting off to the last
 let statsGrow = false;
 let statsRise = [];
+let growHold = false;        // the screen is still sliding in; let it land first
+let growTimer = 0;
+
+/** Arms the wave for the next render. Held back when a slide has to land first. */
+function growStats(hold) {
+  clearTimeout(growTimer);
+  statsGrow = !(stillMotion && stillMotion.matches);
+  growHold = statsGrow && !!hold;
+  statsRise = [];
+}
 
 /** How long the slot at j waits, as a share of the way across the visible run. */
 function waveAt(j, n) {
@@ -1382,8 +1496,14 @@ function renderStats() {
   if (statsGrow) {
     statsGrow = false;
     void $('stats-bars').offsetWidth;
-    for (const [node, prop, v] of statsRise) node.style[prop] = v;
+    const rise = statsRise;
     statsRise = [];
+    const release = () => { for (const [node, prop, v] of rise) node.style[prop] = v; };
+    clearTimeout(growTimer);
+    // Arrived by a slide: the screen comes in empty and fills once it is standing
+    // still, the same way the dial on Home waits for its screen before it travels.
+    if (growHold) { growHold = false; growTimer = setTimeout(release, SLIDE_MS); }
+    else release();
   }
   applyScrub();
 }
@@ -1654,6 +1774,30 @@ function closeSettings() {
   sheetTimer = setTimeout(() => { if (!ui.settings) box.style.display = 'none'; }, SHEET_MS);
 }
 
+// ── the disc ──
+// Each bite is a circle of the sheet's own ground sitting astride the rim, so what is
+// left of the disc between them is the scalloped edge. Placed by turning each one out
+// from the middle rather than by working out where it lands, which is the same thing
+// said in one line instead of two.
+const DISK_BOX = 94;
+const DISK_R = 47;           // the rim the bites straddle
+const DISK_BITE = 18;
+const DISK_BITES = 10;
+const DISK_MS = 9000;        // one turn
+document.documentElement.style.setProperty('--disk-ms', DISK_MS + 'ms');
+
+function buildDisk() {
+  const host = $('set-disk-spin');
+  const off = ((DISK_BOX - DISK_BITE) / 2).toFixed(1);
+  for (let i = 0; i < DISK_BITES; i++) {
+    host.appendChild(el('div',
+      'position:absolute;left:' + off + 'px;top:' + off + 'px;width:' + DISK_BITE +
+      'px;height:' + DISK_BITE + 'px;border-radius:50%;background:#C0C3B0;' +
+      'transform:rotate(' + ((i * 360) / DISK_BITES).toFixed(2) +
+      'deg) translateY(-' + DISK_R + 'px)'));
+  }
+}
+
 /** Ten years back, which is further than anyone will page and short of the epoch. */
 function startFloor() {
   const d = monthStart(new Date());
@@ -1679,13 +1823,13 @@ const goalDigits = () => Math.round(Number(String($('set-goal').value).replace(/
     half-typed figure is not a decision and must not be tidied up or clamped yet. */
 function typeGoal() {
   const v = goalDigits();
-  if (v > 0 && v <= 20000) { setGoal(v); render(); }
+  if (v > 0 && v <= 20000) { setGoalOn(ui.day, v); render(); }
 }
 
 function commitGoal() {
   const v = goalDigits();
-  setGoal(clamp(v > 0 ? v : goal(), 100, 20000));
-  $('set-goal').value = nf(goal());
+  setGoalOn(ui.day, clamp(v > 0 ? v : goalOn(ui.day), 100, 20000));
+  $('set-goal').value = nf(goalOn(ui.day));
   render();
 }
 
@@ -1815,7 +1959,12 @@ function renderSettings() {
   }
 
   const input = $('set-goal');
-  if (document.activeElement !== input) input.value = nf(goal());
+  if (document.activeElement !== input) input.value = nf(goalOn(ui.day));
+  // On a day gone by the figure is that day's, and the caption says whose it is -
+  // otherwise a past maximum would be edited under the heading of the current one.
+  $('set-goal-cap').textContent =
+    ui.day > 0 ? 'MAXIMUM FROM ' + dayLabel(ui.day) : 'MAXIMUM CALORIES';
+
   const s = monthStart(new Date(Number.isFinite(store.start) ? store.start : Date.now()));
   $('set-start').textContent = CAL_MONTHS[s.getMonth()] + ' ' + s.getFullYear();
   $('set-start-prev').classList.toggle('off', s <= startFloor());
@@ -1983,8 +2132,7 @@ $('stats-range-btn').addEventListener('click', () => {
   ui.mealSelDay = null;
   ui.scrub = 0;              // slots change width, so an offset would not carry over
   statsSlider.stop();
-  statsGrow = !(stillMotion && stillMotion.matches);
-  statsRise = [];
+  growStats(false);          // already standing still: nothing to wait for
   render();
 });
 
@@ -2241,6 +2389,7 @@ closeStaleMeals();
 try { if (localStorage.getItem(WAS_KEY) != null) save(); } catch (e) { /* nothing to move */ }
 askToPersist();
 ensureStart();
+buildDisk();
 layout();
 go('home');
 
