@@ -30,6 +30,7 @@ const CHART_TOP = 236;
 const CHART_H = 248;
 const RULE_YS = [198, 234];
 const RULE_SEP = 8;          // clear ground left between the red and the grey it displaces
+const RISER_GAP = 3;         // and between a step's riser and the two lines it steps between
 
 // Both dials are pinned at a fixed point on the band and grow counter-clockwise, so the
 // round cap rides the leading edge rather than the tail. At the sweeps the prototype drew
@@ -1233,11 +1234,18 @@ function renderGoalRule(end, cfg, geom, total, g) {
         'letter-spacing:.1em;color:#FF0000;white-space:nowrap', nf(held)));
     }
     if (v != null) {
+      // The riser marks the change; it is not a corner of either line. Left short of
+      // both, it stays a third mark of its own - welded on, it reads as one line bent
+      // in the middle, which is the one thing the step is there to say it is not.
+      // Each line's ink sits in the 2px above the height it is drawn at.
       const a = pctOf(held), b = pctOf(v);
-      track.appendChild(el('div',
-        'position:absolute;left:' + (edge(j) - 1).toFixed(2) +
-        'px;width:2px;bottom:' + Math.min(a, b).toFixed(2) + '%;height:' +
-        Math.abs(a - b).toFixed(2) + '%;background:#FF0000'));
+      const lo = (CHART_H * Math.min(a, b)) / 100 + 2 + RISER_GAP;
+      const hi = (CHART_H * Math.max(a, b)) / 100 - RISER_GAP;
+      if (hi > lo) {
+        track.appendChild(el('div',
+          'position:absolute;left:' + (edge(j) - 1).toFixed(2) + 'px;width:2px;bottom:' +
+          lo.toFixed(2) + 'px;height:' + (hi - lo).toFixed(2) + 'px;background:#FF0000'));
+      }
     }
     from = j;
     held = v;
