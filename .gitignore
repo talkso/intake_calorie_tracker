@@ -1,0 +1,3 @@
+# Built by build.sh on the way to being published; never committed.
+dist/
+.wrangler/

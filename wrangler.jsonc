@@ -1,0 +1,12 @@
+{
+  // intake is a handful of static files and no server: no `main` entrypoint, because
+  // there is no request this Worker has to think about. Cloudflare serves the directory
+  // build.sh fills and that is the whole of it.
+  //
+  // The name is the address: intake.<your subdomain>.workers.dev.
+  "name": "intake",
+  "compatibility_date": "2026-09-22",
+  "assets": {
+    "directory": "./dist"
+  }
+}
