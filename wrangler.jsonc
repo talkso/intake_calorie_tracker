@@ -7,6 +7,9 @@
   "name": "intake",
   "compatibility_date": "2026-09-22",
   "assets": {
-    "directory": "./dist"
+    "directory": "./dist",
+    // One page, so anything that is not a file it ships is still the app rather than a
+    // 404 — and, more to the point, is answered without a redirect.
+    "not_found_handling": "single-page-application"
   }
 }

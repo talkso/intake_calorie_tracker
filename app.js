@@ -2527,5 +2527,11 @@ go('home');
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  // update() on every load, so a worker that turns out to be broken is replaced on the
+  // next launch rather than whenever the browser next feels like checking.
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => reg.update())
+      .catch(() => {});
+  });
 }

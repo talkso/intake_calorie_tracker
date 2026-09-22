@@ -2,7 +2,7 @@
   "name": "intake",
   "short_name": "intake",
   "description": "Calorie intake tracker — dial, calculator and stats.",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "id": "/intake/",
   "display": "standalone",

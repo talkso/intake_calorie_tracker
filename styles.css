@@ -9,7 +9,10 @@ html, body {
   padding: 0;
   height: 100%;
   overflow: hidden;
-  background: #000;
+  /* iOS paints the strip behind the home indicator with the page's own background, so
+     black here shows as a band under the canvas on a phone. The backdrop covers this
+     everywhere else; they agree so that nothing but red can ever appear. */
+  background: #FF0000;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior: none;
