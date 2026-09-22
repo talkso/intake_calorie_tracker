@@ -41,6 +41,13 @@ body {
   /* Sideways gestures belong to the app, which is what makes a swipe between screens
      possible; up and down is left alone so the day stack can still be scrolled. */
   touch-action: pan-y;
+  /* None of this is text to be taken away and put somewhere else, and a selection left
+     behind by a drag is worse than useless: the next drag beginning on top of one is
+     read as picking the selection up and carrying it, and the browser cancels the
+     gesture the swipe was riding on to do it. One swipe over a word would work and
+     every one after it would be swallowed. */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .screen { display: none; }
@@ -204,8 +211,11 @@ input.set-val {
   -webkit-appearance: none;
   appearance: none;
   /* The sheet takes every other gesture on itself; the field keeps its own, so the
-     caret can still be put where it is wanted. */
+     caret can still be put where it is wanted. It is the one thing on the canvas that
+     is typed into, so it is also the one thing that keeps its selection. */
   touch-action: auto;
+  user-select: text;
+  -webkit-user-select: text;
 }
 input.set-val:focus { color: #FF0000; }
 
@@ -277,11 +287,15 @@ input.set-val:focus { color: #FF0000; }
 
    402px is the width of the whole canvas, which is further than any of these panes has
    to go from where it sits to be off the screen entirely. The screen clips, so a pane
-   is gone the moment it passes the edge rather than crossing the letterbox. */
-@keyframes pane-in-right  { from { transform: translateX(402px); } }
-@keyframes pane-in-left   { from { transform: translateX(-402px); } }
-@keyframes pane-out-left  { to   { transform: translateX(-402px); } }
-@keyframes pane-out-right { to   { transform: translateX(402px); } }
+   is gone the moment it passes the edge rather than crossing the letterbox.
+
+   A pane with a narrower window than the screen sets --pane-dx to the width of that
+   window instead, so it leaves by its own edge and the next arrives from the same one,
+   rather than waiting off-stage and appearing halfway in. */
+@keyframes pane-in-right  { from { transform: translateX(var(--pane-dx, 402px)); } }
+@keyframes pane-in-left   { from { transform: translateX(calc(var(--pane-dx, 402px) * -1)); } }
+@keyframes pane-out-left  { to   { transform: translateX(calc(var(--pane-dx, 402px) * -1)); } }
+@keyframes pane-out-right { to   { transform: translateX(var(--pane-dx, 402px)); } }
 
 .pane-in-right, .pane-in-left, .pane-out-left, .pane-out-right {
   animation-duration: var(--pane-ms, 240ms);

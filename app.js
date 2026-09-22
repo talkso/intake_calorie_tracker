@@ -959,6 +959,14 @@ function clearGhosts() {
   calGhosts = [];
 }
 
+/** How far this pane has to go to be out of sight: the width of whatever clips it. */
+function paneTravel(node) {
+  const clip = node.parentNode;
+  const w = clip && clip.id === 'cal-monthclip' ? clip.offsetWidth : 0;
+  if (w) node.style.setProperty('--pane-dx', w + 'px');
+  else node.style.removeProperty('--pane-dx');
+}
+
 function slideMonth(step) {
   if (stillMotion && stillMotion.matches) return render();
   clearGhosts();
@@ -977,6 +985,7 @@ function slideMonth(step) {
       'pointer-events:none;left:' + node.offsetLeft + 'px;top:' + node.offsetTop +
       'px;width:' + node.offsetWidth + 'px';
     node.parentNode.appendChild(ghost);
+    paneTravel(ghost);               // it leaves by the same edge the next one enters
     calGhosts.push(ghost);
   }
 
@@ -986,6 +995,10 @@ function slideMonth(step) {
   for (const g of calGhosts) g.classList.add(out);
   for (const id of CAL_PANES) {
     const node = $(id);
+    // Each pane travels the width of the window it travels in. The grid's is the whole
+    // screen; the month's is only the space left of the weekday and the arrows, which
+    // stand still - without this it would cross them on its way past.
+    paneTravel(node);
     // Removed first, or a second page in the same direction would find the animation
     // already running and leave the pane sitting where it is.
     node.classList.remove('pane-in-left', 'pane-in-right');
@@ -2395,11 +2408,16 @@ const histSlider = makeSlider($('screen-calc'), {
 });
 
 // ── swiping between screens ──────────────────────────────────────────────────
-// Where a sideways drag leads, per screen. Anything that already drags something of
-// its own keeps the gesture: the stats window and the history row are dragged, not
-// swiped, so a swipe has to begin outside them.
+// Where a sideways drag leads, per screen, named for the way the finger goes. A drag
+// pulls the screen along with it and brings in whatever lies on the side it came from,
+// which is why dragging right reaches stats, sitting to the left of home, and dragging
+// left reaches the calculator on its right. It is the same arrangement the slides are
+// built on, so a screen reached by hand arrives from the side it would anyway.
+//
+// Anything that already drags something of its own keeps the gesture: the stats window
+// and the history row are dragged, not swiped, so a swipe has to begin outside them.
 const SWIPE_TO = {
-  home: { right: 'stats' },
+  home: { right: 'stats', left: 'calc' },
   stats: { left: 'home' },
   calc: { right: 'home' },
   calendar: { right: 'home' }

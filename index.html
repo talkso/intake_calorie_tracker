@@ -95,9 +95,16 @@
   <div id="cal-daynum" style="position:absolute;left:22px;top:190px;z-index:9;color:#270E0E;font:900 124px/.78 Archivo,sans-serif;letter-spacing:-.055em">20</div>
 
   <div style="position:absolute;left:24px;right:24px;top:330px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;z-index:9">
-    <div id="cal-monthbox" style="min-width:0">
-      <div id="cal-month" style="color:#270E0E;font:900 27px/1 Archivo,sans-serif;letter-spacing:-.03em;white-space:nowrap">SEPT</div>
-      <div id="cal-year" style="margin-top:5px;color:rgba(39,14,14,.4);font:900 27px/1 Archivo,sans-serif;letter-spacing:-.03em">2026</div>
+    <!-- The month travels when the calendar is paged, and the weekday and arrows beside
+         it do not, so it is given a window of its own to travel in: it reaches the edge
+         of the space it owns and is gone, rather than carrying on across its neighbours.
+         Clipped sideways only - the two lines inside are free to stand as tall as they
+         like, which a plain overflow:hidden would cut into. -->
+    <div id="cal-monthclip" style="position:relative;flex:1 1 auto;min-width:0;clip-path:inset(-120px 0 -120px 0)">
+      <div id="cal-monthbox">
+        <div id="cal-month" style="color:#270E0E;font:900 27px/1 Archivo,sans-serif;letter-spacing:-.03em;white-space:nowrap">SEPT</div>
+        <div id="cal-year" style="margin-top:5px;color:rgba(39,14,14,.4);font:900 27px/1 Archivo,sans-serif;letter-spacing:-.03em">2026</div>
+      </div>
     </div>
     <div style="flex:none;text-align:right">
       <div id="cal-downame" style="color:rgba(39,14,14,.4);font:900 27px/1 Archivo,sans-serif;letter-spacing:-.02em">SAT</div>
