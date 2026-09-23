@@ -573,7 +573,24 @@ function layout() {
   paintBackdrop();
 }
 
+// The colour along the top edge of each screen, and the settings scrim laid over it.
+const SCREEN_TOP = { home: [255, 0, 0], calc: [39, 14, 14], calendar: [192, 195, 176], stats: [192, 195, 176] };
+const SCRIM = [39, 14, 14], SCRIM_A = 0.22;
+
+/**
+ * What shows past the page when iOS moves it — the keyboard for the maximum shifts it
+ * down for a moment as it comes up — is the root's own colour. It is kept to whatever
+ * is along the top of the screen, scrim included, so a strip uncovered there reads as
+ * more of the same rather than as a band of the wrong red.
+ */
+function paintRoot() {
+  const top = SCREEN_TOP[ui.screen] || SCREEN_TOP.home;
+  const c = ui.settings ? top.map((v, i) => Math.round(v * (1 - SCRIM_A) + SCRIM[i] * SCRIM_A)) : top;
+  document.documentElement.style.backgroundColor = 'rgb(' + c.join(',') + ')';
+}
+
 function paintBackdrop() {
+  paintRoot();
   if (ui.screen === 'home') backdrop.style.background = '#FF0000';
   else if (ui.screen === 'calc') backdrop.style.background = '#270E0E';
   else if (ui.screen === 'calendar') backdrop.style.background = '#C0C3B0';
@@ -591,17 +608,28 @@ function paintBackdrop() {
 // a screen further right arrives from the right. It matches the swipes by
 // construction, so reaching a screen by button looks the same as reaching it by hand.
 const SCREENS = ['home', 'calc', 'stats', 'calendar'];
-const SCREEN_AT = { stats: -1, home: 0, calc: 1, calendar: 1 };
+const SCREEN_AT = { stats: -1, calendar: -1, home: 0, calc: 1 };
+// Home is the floor the others lie on. Going to any other screen brings it in over a
+// home that stays put; coming back takes it away again and uncovers home, still there.
+const onTop = s => s !== 'home';
 const SLIDE_MS = 260;
 const stillMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
 let slideTimer = 0;
 document.documentElement.style.setProperty('--slide-ms', SLIDE_MS + 'ms');
 
+/**
+ * Every screen back to its plain resting state: no slide, no swipe, nothing borrowed
+ * for either. Whatever was mid-flight — or left behind by a gesture that went wrong —
+ * is cleared here, so the stage can never be stuck showing more than one screen.
+ */
 function endSlide() {
   clearTimeout(slideTimer);
   stage.classList.remove('sliding');
   for (const s of SCREENS) {
-    $('screen-' + s).classList.remove('leaving', 'from-left', 'from-right', 'to-left', 'to-right');
+    const node = $('screen-' + s);
+    node.classList.remove('leaving', 'peek', 'from-left', 'from-right', 'to-left', 'to-right');
+    node.style.transform = '';
+    node.style.zIndex = '';
   }
 }
 
@@ -612,8 +640,18 @@ function startSlide(from, to) {
   if (!step) return;                           // side by side: nothing to slide past
   const out = $('screen-' + from);
   const inn = $('screen-' + to);
-  out.classList.add('leaving', step > 0 ? 'to-left' : 'to-right');
-  inn.classList.add(step > 0 ? 'from-right' : 'from-left');
+  out.classList.add('leaving');
+  // Only the upper of the two moves. Arriving on top, it comes in over the one below;
+  // leaving from on top, it goes and uncovers the one below where it always was.
+  if (onTop(to)) {
+    inn.classList.add(step > 0 ? 'from-right' : 'from-left');
+    inn.style.zIndex = '2';
+    out.style.zIndex = '1';
+  } else {
+    out.classList.add(step > 0 ? 'to-left' : 'to-right');
+    out.style.zIndex = '2';
+    inn.style.zIndex = '1';
+  }
   stage.classList.add('sliding');
   slideTimer = setTimeout(endSlide, SLIDE_MS);
 }
@@ -1007,12 +1045,19 @@ function clearGhosts() {
   calGhosts = [];
 }
 
-/** How far this pane has to go to be out of sight: the width of whatever clips it. */
+// The month and year do not travel out of sight: they drift this far and fade, so there
+// is no edge for them to be cut off at, and nowhere near the weekday and arrows to cross.
+const MONTH_DRIFT = 36;
+
+/** How far this pane goes on its way out: the screen's width, or the month's short drift. */
 function paneTravel(node) {
   const clip = node.parentNode;
-  const w = clip && clip.id === 'cal-monthclip' ? clip.offsetWidth : 0;
-  if (w) node.style.setProperty('--pane-dx', w + 'px');
-  else node.style.removeProperty('--pane-dx');
+  if (clip && clip.id === 'cal-monthclip') {
+    node.style.setProperty('--pane-dx', MONTH_DRIFT + 'px');
+    node.classList.add('pane-fade');
+  } else {
+    node.style.removeProperty('--pane-dx');
+  }
 }
 
 function slideMonth(step) {
@@ -1043,9 +1088,7 @@ function slideMonth(step) {
   for (const g of calGhosts) g.classList.add(out);
   for (const id of CAL_PANES) {
     const node = $(id);
-    // Each pane travels the width of the window it travels in. The grid's is the whole
-    // screen; the month's is only the space left of the weekday and the arrows, which
-    // stand still - without this it would cross them on its way past.
+    // The grid travels the whole screen; the month only drifts and fades (see MONTH_DRIFT).
     paneTravel(node);
     // Removed first, or a second page in the same direction would find the animation
     // already running and leave the pane sitting where it is.
@@ -1961,6 +2004,7 @@ function openSettings() {
   renderSettings();
   void box.offsetWidth;      // laid out closed first, so it rises instead of appearing
   box.classList.add('open');
+  paintRoot();
 }
 
 function closeSettings() {
@@ -1968,6 +2012,7 @@ function closeSettings() {
   closeAsk();
   commitGoal();
   ui.settings = false;
+  paintRoot();
   const box = $('settings');
   box.classList.remove('open', 'dragging');
   $('settings-sheet').style.transform = '';   // back under the class's control
@@ -2472,7 +2517,7 @@ const SWIPE_TO = {
   home: { right: 'stats', left: 'calc' },
   stats: { left: 'home' },
   calc: { right: 'home' },
-  calendar: { right: 'home' }
+  calendar: { left: 'home' }
 };
 // A zone only keeps the gesture while it has somewhere to go. A history row short
 // enough to sit still would otherwise be a dead strip across half the screen.
@@ -2523,15 +2568,37 @@ function unpeek(n) {
   const node = $('screen-' + n);
   node.classList.remove('peek');
   node.style.transform = '';
+  node.style.zIndex = '';
 }
 
+const shift = x => 'translate3d(' + x.toFixed(2) + 'px,0,0)';
+
+/**
+ * Only the upper screen follows the finger (see onTop): one coming in over home slides
+ * across a home that stays put, and one going back uncovers it. With nowhere to go,
+ * the screen under the finger is the only one there, and it gives a little on its own.
+ */
 function paintDrag() {
   const x = drag.x;
-  $('screen-' + drag.from).style.transform = 'translate3d(' + x.toFixed(2) + 'px,0,0)';
-  if (drag.to) {
-    $('screen-' + drag.to).style.transform =
-      'translate3d(' + (x - drag.side * SWIPE_W).toFixed(2) + 'px,0,0)';
+  const from = $('screen-' + drag.from);
+  if (!drag.to) { from.style.transform = shift(x); return; }
+  const to = $('screen-' + drag.to);
+  if (onTop(drag.to)) {
+    from.style.transform = '';
+    to.style.transform = shift(x - drag.side * SWIPE_W);
+  } else {
+    from.style.transform = shift(x);
+    to.style.transform = '';
   }
+}
+
+/** Upper screen over lower, per onTop, for as long as the pair is on show together. */
+function stackDrag() {
+  const from = $('screen-' + drag.from);
+  if (!drag.to) { from.style.zIndex = ''; return; }
+  const up = onTop(drag.to);
+  $('screen-' + drag.to).style.zIndex = up ? '2' : '1';
+  from.style.zIndex = up ? '1' : '2';
 }
 
 /** raw: canvas px the finger has travelled since the swipe picked a direction. */
@@ -2543,6 +2610,7 @@ function moveDrag(raw, t) {
     if (drag.to && !drag.still) unpeek(drag.to);
     drag.to = to;
     if (to && !drag.still) peek(to);
+    if (!drag.still) stackDrag();
   }
   drag.side = side;
   drag.x = to ? clamp(raw, -SWIPE_W, SWIPE_W) : rubber(raw);
@@ -2610,9 +2678,9 @@ function endDrag() {
   const d = drag;
   drag = null;
   cancelAnimationFrame(settleRaf);
-  $('screen-' + d.from).style.transform = '';
-  if (d.to) unpeek(d.to);
-  stage.classList.remove('sliding');
+  // Every screen, not only the two this swipe knew about: nothing it touched, and
+  // nothing a gesture before it might have left out, stays on show.
+  endSlide();
   if (d.commit && d.to) go(d.to, true);
 }
 
@@ -2625,6 +2693,15 @@ function dropDrag() {
 }
 
 stage.addEventListener('pointerdown', e => {
+  // Another finger while one is already swiping. The first has the screen and keeps
+  // it: two fingers each pulling a different way would otherwise each bring in a screen
+  // of their own. Unless the first has gone without a word — the system can take a
+  // pointer away without a pointerup — in which case its swipe is put away first, so
+  // a finger that was never going to lift cannot hold the screen for ever.
+  if (drag && drag.claimed && !drag.settling && e.pointerId !== drag.id) {
+    if (stage.hasPointerCapture && stage.hasPointerCapture(drag.id)) return;
+    dropDrag();
+  }
   swiped = false;
   // Caught while still settling: picked up from wherever it has got to, the same as
   // any drag, and decided again on the next release.
@@ -2678,12 +2755,18 @@ stage.addEventListener('pointerup', e => {
   letGo(e.timeStamp);
 });
 
-// Taken away by the system: go back rather than guess what was meant.
-stage.addEventListener('pointercancel', e => {
+// Taken away by the system: go back rather than guess what was meant. Losing the
+// capture without either of the usual endings counts the same.
+function abandonDrag(e) {
   if (!drag || drag.settling || e.pointerId !== drag.id) return;
   if (!drag.claimed || drag.still) { drag = null; return; }
   settleDrag(0, 0, false);
-});
+}
+stage.addEventListener('pointercancel', abandonDrag);
+// Only the stage's own capture. A touch starts captured to whatever it landed on, and
+// the stage taking it over sends that element a lostpointercapture which bubbles up
+// here — that one is the swipe beginning, not the finger going.
+stage.addEventListener('lostpointercapture', e => { if (e.target === stage) abandonDrag(e); });
 
 // The screen has changed under the finger, so whatever is now beneath it is not
 // something the person meant to press.
@@ -2720,16 +2803,31 @@ window.addEventListener('keydown', e => {
 // The page is taller than the viewport iOS reports, so it has the difference to scroll
 // by. Nothing should ever move it but the keyboard, and once that goes, so does the
 // offset.
-window.addEventListener('scroll', () => {
+function editing() {
   const a = document.activeElement;
-  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+  return !!a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA');
+}
+
+window.addEventListener('scroll', () => {
+  if (editing()) return;
   if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
 });
-document.addEventListener('focusout', () => setTimeout(() => window.scrollTo(0, 0), 0));
+// Measured again once the keyboard has gone, in case anything really did change under it.
+document.addEventListener('focusout', () => setTimeout(() => {
+  window.scrollTo(0, 0);
+  layout();
+}, 0));
 
-window.addEventListener('resize', layout);
-window.addEventListener('orientationchange', layout);
-if (window.visualViewport) window.visualViewport.addEventListener('resize', layout);
+// The keyboard coming up shrinks the visible area, not the screen. Laying the canvas out
+// again against it while iOS is still animating the keyboard in — resizing, and snapping
+// the page back to the top under it — is a fight with the keyboard's own motion that
+// shows as the page jumping; so while something is being typed into, it is left alone.
+function relayout() {
+  if (!editing()) layout();
+}
+window.addEventListener('resize', relayout);
+window.addEventListener('orientationchange', relayout);
+if (window.visualViewport) window.visualViewport.addEventListener('resize', relayout);
 
 // A day boundary crossed while the app sits open would otherwise leave stale totals.
 let lastDay = dayKey(new Date());

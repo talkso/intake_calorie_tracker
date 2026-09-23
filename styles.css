@@ -321,6 +321,18 @@ input.set-val:focus { color: #FF0000; }
 .pane-out-left  { animation-name: pane-out-left; pointer-events: none; }
 .pane-out-right { animation-name: pane-out-right; pointer-events: none; }
 
+/* The month and year: a short drift with a crossfade instead of a trip off the edge. The
+   outgoing one is gone by 60% and the incoming one only starts to show at 40%, so the
+   two are never both legible at once. */
+@keyframes fade-in-right  { from { transform: translateX(var(--pane-dx)); opacity: 0; } 40% { opacity: 0; } }
+@keyframes fade-in-left   { from { transform: translateX(calc(var(--pane-dx) * -1)); opacity: 0; } 40% { opacity: 0; } }
+@keyframes fade-out-left  { 60% { opacity: 0; } to { transform: translateX(calc(var(--pane-dx) * -1)); opacity: 0; } }
+@keyframes fade-out-right { 60% { opacity: 0; } to { transform: translateX(var(--pane-dx)); opacity: 0; } }
+.pane-fade.pane-in-right  { animation-name: fade-in-right; }
+.pane-fade.pane-in-left   { animation-name: fade-in-left; }
+.pane-fade.pane-out-left  { animation-name: fade-out-left; }
+.pane-fade.pane-out-right { animation-name: fade-out-right; }
+
 @media (prefers-reduced-motion: reduce) {
   .pane-in-right, .pane-in-left, .pane-out-left, .pane-out-right { animation: none; }
 }
