@@ -618,8 +618,12 @@ function startSlide(from, to) {
   slideTimer = setTimeout(endSlide, SLIDE_MS);
 }
 
-function go(screen) {
-  const from = ui.screen;
+/**
+ * What a screen is reset to on the way in, apart from being put on show. A swipe runs
+ * this for the screen it is pulling in before anyone has let go, so that what is seen
+ * coming in under the finger is the screen as it will be once it has arrived.
+ */
+function arrive(screen) {
   // The calculator always opens on the keypad, never on whatever view was left behind.
   if (screen === 'calc') {
     ui.view = 'calc';
@@ -635,18 +639,28 @@ function go(screen) {
     ui.fresh = true;
     ui.showTotal = openTotal() > 0;
   }
-  if (screen !== 'home') ui.picker = false;
   // Stats always opens where it rests: the range and the scrub are both ways of looking
   // around rather than places, so neither is carried back in from the last visit.
   if (screen === 'stats') {
     statsSlider.stop();
     ui.range = RANGES[0];
     ui.scrub = 0; ui.selDay = null; ui.mealSelDay = null;
-    // Arriving is the same kind of event as changing the range: a window onto days you
-    // were not looking at a moment ago. It comes up out of the floor either way, and
-    // waits for the screen it is on to land first.
-    growStats(from !== screen);
   }
+}
+
+let drag = null;             // a swipe in hand, or still settling (see "swiping between screens")
+
+/** landed: the screen is already in place, carried there by a finger, so no slide. */
+function go(screen, landed) {
+  const from = ui.screen;
+  // A button or a key pressed while a swipe is still settling wins over the swipe.
+  if (drag && !landed) dropDrag();
+  arrive(screen);
+  if (screen !== 'home') ui.picker = false;
+  // Arriving is the same kind of event as changing the range: a window onto days you
+  // were not looking at a moment ago. It comes up out of the floor either way, and
+  // waits for the screen it is on to land first — which a swipe has already done.
+  if (screen === 'stats') growStats(from !== screen && !landed);
   ui.screen = screen;
   for (const s of SCREENS) {
     $('screen-' + s).classList.toggle('active', s === screen);
@@ -654,7 +668,7 @@ function go(screen) {
   // Drawn while on show and before the slide starts: the calculator measures its own
   // type to place the arc, and a hidden screen measures as nothing at all.
   render();
-  if (from !== screen) startSlide(from, screen);
+  if (from !== screen && !landed) startSlide(from, screen);
   paintBackdrop();
 }
 
@@ -2137,11 +2151,15 @@ function renderSettings() {
 }
 
 // ── render ───────────────────────────────────────────────────────────────────
-function render() {
-  if (ui.screen === 'home') renderHome();
-  else if (ui.screen === 'calc') renderCalc();
-  else if (ui.screen === 'calendar') renderCalendar();
+function drawScreen(s) {
+  if (s === 'home') renderHome();
+  else if (s === 'calc') renderCalc();
+  else if (s === 'calendar') renderCalendar();
   else renderStats();
+}
+
+function render() {
+  drawScreen(ui.screen);
   if (ui.settings) renderSettings();
 }
 
@@ -2462,41 +2480,210 @@ const SWIPE_KEEP = {
   stats: () => SCRUB_ZONE,
   calc: () => (histOverflow() > 0 ? '#calc-history' : null)
 };
-const SWIPE_MIN = 60;        // canvas px of travel before a drag counts as a swipe
-const SWIPE_SLOPE = 1.5;     // and how much flatter than tall it has to be
+// The screen travels with the finger the whole way, with the one it is uncovering
+// following on beside it, and letting go decides only where it finishes up: carried on
+// over if it is more than SWIPE_COMMIT of the way there or was flicked that way, and
+// back where it started otherwise. How it gets there is a spring that starts at the
+// finger's own speed, so a flick keeps its momentum and a slow drag eases home.
+const SWIPE_W = 402;         // canvas px: a screen's width, and so a whole swipe
+const SWIPE_SLOP = 6;        // canvas px a finger can wander before it picks a direction
+const SWIPE_COMMIT = 0.25;   // share of the way across past which letting go carries on
+const SWIPE_FLING = 0.2;     // canvas px/ms: a flick this quick goes whatever the distance
+// The spring's natural frequency, per second. From a standstill at a quarter of the way,
+// 90% of the rest of the way takes 300ms and the last sub-pixel creep another 350.
+const SETTLE_RATE = 13;
+const SWIPE_LOOK = 100;      // ms of movement the release speed is taken over
+const SWIPE_HELD = 60;       // ms of stillness before lifting that cancel a flick
+// With nowhere to go, the screen still gives under the finger, but less and less.
+const RUBBER = 0.55;
 
-let swipeFrom = null;
 let swiped = false;
+let settleRaf = 0;
+
+function rubber(x) {
+  const k = 1 - 1 / (Math.abs(x) * RUBBER / SWIPE_W + 1);
+  return Math.sign(x) * k * SWIPE_W;
+}
+function unrubber(x) {
+  const k = Math.min(0.999, Math.abs(x) / SWIPE_W);
+  return Math.sign(x) * (1 / (1 - k) - 1) * SWIPE_W / RUBBER;
+}
+
+/** Puts a screen alongside the one under the finger, drawn as it will be on arrival. */
+function peek(n) {
+  arrive(n);
+  // Flat until it has landed, then up out of the floor, the same as arriving any other way.
+  if (n === 'stats') growStats(true);
+  $('screen-' + n).classList.add('peek');
+  drawScreen(n);
+  if (n === 'stats') clearTimeout(growTimer);
+}
+
+function unpeek(n) {
+  const node = $('screen-' + n);
+  node.classList.remove('peek');
+  node.style.transform = '';
+}
+
+function paintDrag() {
+  const x = drag.x;
+  $('screen-' + drag.from).style.transform = 'translate3d(' + x.toFixed(2) + 'px,0,0)';
+  if (drag.to) {
+    $('screen-' + drag.to).style.transform =
+      'translate3d(' + (x - drag.side * SWIPE_W).toFixed(2) + 'px,0,0)';
+  }
+}
+
+/** raw: canvas px the finger has travelled since the swipe picked a direction. */
+function moveDrag(raw, t) {
+  const side = raw > 0 ? 1 : raw < 0 ? -1 : drag.side;
+  const to = side ? SWIPE_TO[drag.from][side > 0 ? 'right' : 'left'] || null : null;
+  // Back through the middle and out the other side: home has a screen either way.
+  if (to !== drag.to) {
+    if (drag.to && !drag.still) unpeek(drag.to);
+    drag.to = to;
+    if (to && !drag.still) peek(to);
+  }
+  drag.side = side;
+  drag.x = to ? clamp(raw, -SWIPE_W, SWIPE_W) : rubber(raw);
+  drag.samples.push([t, drag.x]);
+  while (drag.samples.length > 2 && t - drag.samples[0][0] > SWIPE_LOOK) drag.samples.shift();
+  if (!drag.still) paintDrag();
+}
+
+/**
+ * Canvas px per ms over the finger's last stretch of movement. Held still for a moment
+ * before lifting, it has none: that is someone placing a screen, not throwing it.
+ */
+function dragSpeed(t) {
+  const s = drag.samples.filter(p => t - p[0] <= SWIPE_LOOK);
+  if (s.length < 2 || t - s[s.length - 1][0] > SWIPE_HELD) return 0;
+  return (s[s.length - 1][1] - s[0][1]) / Math.max(8, s[s.length - 1][0] - s[0][0]);
+}
+
+function letGo(t) {
+  const v = dragSpeed(t);
+  let commit = false;
+  if (drag.to) {
+    const along = v * drag.side;
+    if (along > SWIPE_FLING) commit = true;
+    else if (along < -SWIPE_FLING) commit = false;
+    else commit = Math.abs(drag.x) > SWIPE_COMMIT * SWIPE_W;
+  }
+  if (drag.still) {
+    const to = drag.to;
+    drag = null;
+    if (commit) go(to);
+    return;
+  }
+  settleDrag(commit ? drag.side * SWIPE_W : 0, drag.to ? v * 1000 : 0, commit);
+}
+
+// A critically damped spring, solved exactly each frame rather than stepped, so a long
+// frame cannot throw it off. It is not allowed past where it is going: a screen that
+// swung beyond the edge would show the empty stage behind it.
+function settleDrag(target, v0, commit) {
+  drag.settling = true;
+  drag.commit = commit;
+  drag.v = v0;
+  let last = performance.now();
+  const step = now => {
+    const dt = Math.min(0.064, (now - last) / 1000);
+    last = now;
+    const A = drag.x - target;
+    const B = drag.v + SETTLE_RATE * A;
+    const e = Math.exp(-SETTLE_RATE * dt);
+    let x = target + (A + B * dt) * e;
+    let v = (B - SETTLE_RATE * (A + B * dt)) * e;
+    if ((x - target) * A <= 0) { x = target; v = 0; }
+    drag.x = x;
+    drag.v = v;
+    paintDrag();
+    if (Math.abs(x - target) < 0.4 && Math.abs(v) < 40) endDrag();
+    else settleRaf = requestAnimationFrame(step);
+  };
+  settleRaf = requestAnimationFrame(step);
+}
+
+/** Takes the screens out of the swipe; carried over, the one brought in is arrived at. */
+function endDrag() {
+  const d = drag;
+  drag = null;
+  cancelAnimationFrame(settleRaf);
+  $('screen-' + d.from).style.transform = '';
+  if (d.to) unpeek(d.to);
+  stage.classList.remove('sliding');
+  if (d.commit && d.to) go(d.to, true);
+}
+
+/** Abandons a swipe where it stands, for something else that is taking the screen. */
+function dropDrag() {
+  if (!drag) return;
+  drag.commit = false;
+  if (drag.claimed && !drag.still) endDrag();
+  else drag = null;
+}
 
 stage.addEventListener('pointerdown', e => {
   swiped = false;
-  swipeFrom = null;
+  // Caught while still settling: picked up from wherever it has got to, the same as
+  // any drag, and decided again on the next release.
+  if (drag && drag.settling) {
+    cancelAnimationFrame(settleRaf);
+    Object.assign(drag, {
+      settling: false, id: e.pointerId, x0: e.clientX, y0: e.clientY,
+      base: drag.to ? drag.x : unrubber(drag.x), samples: []
+    });
+    swiped = true;
+    try { stage.setPointerCapture(e.pointerId); } catch (err) { /* already gone */ }
+    return;
+  }
+  drag = null;
   // The open day stack and the settings sheet each own the gesture while they are up.
   if (!SWIPE_TO[ui.screen] || ui.picker || ui.settings) return;
   const keep = SWIPE_KEEP[ui.screen] && SWIPE_KEEP[ui.screen]();
   if (keep && e.target.closest(keep)) return;
-  swipeFrom = { x: e.clientX, y: e.clientY, dx: 0, dy: 0 };
+  drag = {
+    from: ui.screen, id: e.pointerId, x0: e.clientX, y0: e.clientY, base: 0,
+    claimed: false, settling: false, side: 0, to: null, x: 0, samples: [],
+    // With motion reduced the screens do not travel; the release still decides.
+    still: !!(stillMotion && stillMotion.matches)
+  };
 });
 
 stage.addEventListener('pointermove', e => {
-  if (!swipeFrom) return;
-  swipeFrom.dx = (e.clientX - swipeFrom.x) / (scale || 1);
-  swipeFrom.dy = (e.clientY - swipeFrom.y) / (scale || 1);
+  if (!drag || drag.settling || e.pointerId !== drag.id) return;
+  const dx = (e.clientX - drag.x0) / (scale || 1);
+  const dy = (e.clientY - drag.y0) / (scale || 1);
+  if (!drag.claimed) {
+    if (Math.abs(dx) < SWIPE_SLOP && Math.abs(dy) < SWIPE_SLOP) return;
+    // More up than across: a scroll, and none of this gesture's business.
+    if (Math.abs(dx) <= Math.abs(dy)) { drag = null; return; }
+    drag.claimed = true;
+    swiped = true;
+    // Taken up from here, so the screen starts moving rather than jumping the slop.
+    drag.base = -Math.sign(dx) * SWIPE_SLOP;
+    try { stage.setPointerCapture(e.pointerId); } catch (err) { /* already gone */ }
+    if (!drag.still) {
+      endSlide();
+      stage.classList.add('sliding');
+    }
+  }
+  moveDrag(drag.base + dx, e.timeStamp);
 });
 
-// Decided on release rather than partway through, so a gesture can still be thought
-// better of, and a long press that wanders never navigates on its own.
-stage.addEventListener('pointerup', () => {
-  const s = swipeFrom;
-  swipeFrom = null;
-  if (!s) return;
-  if (Math.abs(s.dx) < SWIPE_MIN || Math.abs(s.dx) < Math.abs(s.dy) * SWIPE_SLOPE) return;
-  const to = SWIPE_TO[ui.screen][s.dx > 0 ? 'right' : 'left'];
-  if (!to) return;
-  swiped = true;
-  go(to);
+stage.addEventListener('pointerup', e => {
+  if (!drag || drag.settling || e.pointerId !== drag.id) return;
+  if (!drag.claimed) { drag = null; return; }
+  letGo(e.timeStamp);
 });
-stage.addEventListener('pointercancel', () => { swipeFrom = null; });
+
+// Taken away by the system: go back rather than guess what was meant.
+stage.addEventListener('pointercancel', e => {
+  if (!drag || drag.settling || e.pointerId !== drag.id) return;
+  if (!drag.claimed || drag.still) { drag = null; return; }
+  settleDrag(0, 0, false);
+});
 
 // The screen has changed under the finger, so whatever is now beneath it is not
 // something the person meant to press.

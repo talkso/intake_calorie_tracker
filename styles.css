@@ -80,6 +80,9 @@ body {
 /* Kept on show after losing .active, but no longer answering to a finger. */
 .screen.leaving { display: block; pointer-events: none; }
 
+/* Being pulled in by a swipe that has not been let go of yet. */
+.screen.peek { display: block; pointer-events: none; }
+
 @keyframes screen-from-right { from { transform: translateX(100%); } }
 @keyframes screen-from-left  { from { transform: translateX(-100%); } }
 @keyframes screen-to-left    { to   { transform: translateX(-100%); } }
