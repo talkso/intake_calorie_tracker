@@ -527,11 +527,41 @@ const stage = $('stage');
 const backdrop = $('backdrop');
 let scale = 1, offsetY = 0;
 
-function layout() {
+// Opened from the home screen rather than in a browser tab.
+const standalone = navigator.standalone === true ||
+  !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+
+// Up to this much of the canvas may be cropped to fill the screen outright rather
+// than leave a hairline of letterbox down the sides.
+const FILL_CROP = 1.02;
+
+function viewSize() {
   const vv = window.visualViewport;
-  const vw = Math.round((vv && vv.width) || window.innerWidth);
-  const vh = Math.round((vv && vv.height) || window.innerHeight);
-  scale = Math.min(vw / 402, vh / 874);
+  const w = Math.round((vv && vv.width) || window.innerWidth);
+  let h = Math.round((vv && vv.height) || window.innerHeight);
+  // Installed on iOS with a see-through status bar, the page is drawn from the very
+  // top of the glass but innerHeight still leaves the status bar out — 59pt short on a
+  // Dynamic Island phone, which shrank the whole canvas to 91% and letterboxed every
+  // screen. Installed, the page *is* the screen, so take the screen's height, but only
+  // when its width agrees: an iPad in split view is narrower than its screen, and the
+  // measured size is the right one there.
+  if (standalone && window.screen) {
+    const short = Math.min(screen.width, screen.height);
+    const long = Math.max(screen.width, screen.height);
+    const sw = h >= w ? short : long;
+    const sh = h >= w ? long : short;
+    if (Math.abs(sw - w) <= 1 && sh > h) h = sh;
+  }
+  return { w, h };
+}
+
+function layout() {
+  const { w: vw, h: vh } = viewSize();
+  const fit = Math.min(vw / 402, vh / 874);
+  const fill = Math.max(vw / 402, vh / 874);
+  // Every current iPhone is within a hair of the canvas's own shape, so filling costs a
+  // point or two off the top and bottom; anything further off is fitted instead.
+  scale = fill / fit <= FILL_CROP ? fill : fit;
   const ox = (vw - 402 * scale) / 2;
   offsetY = (vh - 874 * scale) / 2;
   stage.style.transform = 'translate(' + ox + 'px,' + offsetY + 'px) scale(' + scale + ')';
