@@ -557,6 +557,10 @@ function viewSize() {
 
 function layout() {
   const { w: vw, h: vh } = viewSize();
+  // The page is as tall as the glass, not as the viewport iOS reports (see #stage).
+  document.documentElement.style.height = vh + 'px';
+  document.body.style.height = vh + 'px';
+  window.scrollTo(0, 0);
   const fit = Math.min(vw / 402, vh / 874);
   const fill = Math.max(vw / 402, vh / 874);
   // Every current iPhone is within a hair of the canvas's own shape, so filling costs a
@@ -2525,6 +2529,16 @@ window.addEventListener('keydown', e => {
   else return;
   e.preventDefault();
 });
+
+// The page is taller than the viewport iOS reports, so it has the difference to scroll
+// by. Nothing should ever move it but the keyboard, and once that goes, so does the
+// offset.
+window.addEventListener('scroll', () => {
+  const a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;
+  if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+});
+document.addEventListener('focusout', () => setTimeout(() => window.scrollTo(0, 0), 0));
 
 window.addEventListener('resize', layout);
 window.addEventListener('orientationchange', layout);

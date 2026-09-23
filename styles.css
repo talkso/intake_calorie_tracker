@@ -19,7 +19,13 @@ html, body {
   touch-action: manipulation;
 }
 
+/* The page is the positioning box for both layers below, and layout() sets its height to
+   the real screen's. Installed on iOS with a see-through status bar, the viewport iOS
+   reports is a status bar short of the glass, and anything position:fixed is cut off at
+   that height, leaving a band of bare background across the bottom of every screen.
+   Content in the page itself is drawn all the way down, so that is where these live. */
 body {
+  position: relative;
   font-family: Archivo, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
@@ -27,14 +33,14 @@ body {
 /* Fills the letterbox left by contain-scaling the 402x874 canvas onto a viewport of a
    different aspect ratio, so the edges read as a continuation of the screen. */
 #backdrop {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 0;
   background: #FF0000;
 }
 
 #stage {
-  position: fixed;
+  position: absolute;
   left: 0;
   top: 0;
   width: 402px;
