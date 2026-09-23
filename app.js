@@ -359,36 +359,29 @@ const viewOpen = () => {
 const openTotal = () => viewOpen().reduce((a, e) => a + e.v, 0);
 
 /**
- * Which meal the open ingredients go into when the dial commits them: a meal already on
- * the day, by its id, or null for a new one. Once anything is open the ingredients carry
- * it themselves, so it is kept across a reload and cannot drift from what they hold;
- * before then it is only a choice made in the history, and a choice of a meal that has
+ * Where the next ingredient goes: a meal already on the day, by its id, or null for the
+ * new meal. Each open ingredient carries its own destination (e.m, or none for the new
+ * meal), so choosing where the next one goes never moves one already added - a meal
+ * being built stays that meal whatever is chosen after it. A choice of a meal that has
  * since been emptied out of existence is no choice at all.
  */
 function mealTarget() {
-  const open = viewOpen();
-  if (open.length) return open[0].m != null ? open[0].m : null;
-  if (ui.addTo != null && !viewEntries().some(e => e.m === ui.addTo)) ui.addTo = null;
+  const m = ui.addTo;
+  if (m != null && !viewEntries().some(e => e.m === m) && !viewOpen().some(e => e.m === m)) ui.addTo = null;
   return ui.addTo;
 }
 
-/** Points the meal being built at a meal already committed, or back at a new one. */
-function setMealTarget(m) {
-  ui.addTo = m;
-  const open = viewOpen();
-  for (const e of open) {
-    if (m == null) delete e.m;
-    else e.m = m;
-  }
-  if (open.length) save();
-}
+function setMealTarget(m) { ui.addTo = m; }
 
-/** What the meal being built comes to so far, counting what it already held if it is
-    an existing one being added to. */
+/** An open ingredient's destination, in mealTarget's terms. */
+const headedFor = e => (e.m != null ? e.m : null);
+
+/** What the meal being added to comes to so far: what it already held, plus what is on
+    its way to it. */
 function mealTotal() {
   const m = mealTarget();
   const had = m == null ? 0 : viewEntries().filter(e => e.m === m).reduce((a, e) => a + e.v, 0);
-  return had + openTotal();
+  return had + viewOpen().filter(e => headedFor(e) === m).reduce((a, e) => a + e.v, 0);
 }
 
 /** A stamp on the day Home is showing, nudged until no other item shares it. */
@@ -413,16 +406,17 @@ function addIngredient(v) {
 }
 
 /**
- * The whole meal goes through at once, its ingredients sharing the id of the first -
- * or, added to a meal already committed, that meal's id. Then they are simply more of
- * it: one meal on the chart, still timed from when it began.
+ * Everything open goes through at once. The new meal's ingredients share the id of its
+ * first; any added to a meal already committed take that meal's id, and are then simply
+ * more of it: one meal on the chart, still timed from when it began.
  */
 function commitItems(items) {
   if (!items.length) return false;
-  const id = items[0].m != null ? items[0].m : items[0].t;
+  const first = items.find(e => e.m == null);
+  const id = first ? first.t : null;
   const drop = new Set(items.map(e => e.t));
   for (const it of items) {
-    const row = { v: it.v, t: it.t, m: id };
+    const row = { v: it.v, t: it.t, m: it.m != null ? it.m : id };
     if (it.n) row.n = 1;
     store.entries.push(row);
   }
@@ -755,9 +749,11 @@ function arrive(screen) {
     ui.pending = null;
     ui.op = null;
     ui.fresh = true;
-    // A meal chosen to add to and then left with nothing added is not carried in: every
-    // visit starts on a new meal unless ingredients already on their way say otherwise.
-    ui.addTo = null;
+    // Picked up where the last ingredient added went - across a reload, even - and on the
+    // new meal if nothing is open. A meal chosen and then left with nothing added to it
+    // is not carried in.
+    const open = viewOpen();
+    ui.addTo = open.length ? headedFor(open[open.length - 1]) : null;
     ui.showTotal = mealTotal() > 0;
   }
   // Stats always opens where it rests: the range and the scrub are both ways of looking
@@ -1455,9 +1451,10 @@ const HIST_W = 354;          // the strip, the canvas less its 24px margins
 const BRACKET_H = 34;        // headroom cut off the top of the tiles for the meal bars
 
 /**
- * The day's ingredients in meals, oldest first, each as { m, items }. The meal still
- * open goes at the end as a new one (m null), or, being added to a meal already there,
- * joins the end of that one - which is where it will be once it is committed.
+ * The day's ingredients in meals, oldest first, each as { m, items }. Every open
+ * ingredient sits at the end of the meal it is headed for - which is where it will be
+ * once it is committed - and the new meal, if anything is headed for it, comes last
+ * (m null).
  */
 function mealRows() {
   const byMeal = new Map();
@@ -1465,41 +1462,30 @@ function mealRows() {
     if (!byMeal.has(e.m)) byMeal.set(e.m, []);
     byMeal.get(e.m).push(e);
   }
-  const open = viewOpen();
-  const target = mealTarget();
-  if (open.length && target != null) {
-    if (!byMeal.has(target)) byMeal.set(target, []);
-    byMeal.get(target).push(...open);
+  const fresh = [];
+  for (const e of viewOpen()) {
+    const m = headedFor(e);
+    if (m == null) { fresh.push(e); continue; }
+    if (!byMeal.has(m)) byMeal.set(m, []);
+    byMeal.get(m).push(e);
   }
   const rows = [...byMeal.entries()].sort((a, b) => a[0] - b[0]).map(([m, items]) => ({ m, items }));
-  if (open.length && target == null) rows.push({ m: null, items: open.slice() });
+  if (fresh.length) rows.push({ m: null, items: fresh });
   return rows;
 }
 
-// Long enough for the number that was tapped to be seen lighting up before the keypad
-// comes back over it.
-const CHOOSE_MS = 180;
-let chooseTimer = 0;
-
 /**
- * A meal's number tapped in the history: what is typed next goes into that meal. The
- * same number again lets it go, back to a new meal. Choosing one heads back to the
- * keypad, because typing is the only thing left to do with the choice.
+ * A meal's number tapped in the history: what is added next goes into that meal. The
+ * lit number of a meal already committed, tapped again, lets it go, back to the new
+ * meal. Nothing already added moves, and the history stays where it is: going back to
+ * the keypad is the person's own move to make.
  */
 function chooseMeal(m) {
-  clearTimeout(chooseTimer);
   disarmTile();
   setMealTarget(m);
   // The readout becomes the meal's so far, unless a figure is part way through being typed.
   if (ui.fresh && ui.op == null) ui.showTotal = mealTotal() > 0;
   render();
-  if (m == null) return;
-  chooseTimer = setTimeout(() => {
-    if (ui.screen !== 'calc' || ui.view !== 'history') return;
-    histSlider.stop();
-    ui.view = 'calc';
-    slideView('history', 'calc');
-  }, CHOOSE_MS);
 }
 
 function histCount() { return viewEntries().length + viewOpen().length; }
@@ -1553,16 +1539,18 @@ function renderHistory() {
     // not just the digit. The one being added to is lit: red ground, dark figure, the
     // way everything else in the app that is switched on is drawn. The ground hangs down
     // from the top of the row rather than up past it, where the history cuts off.
-    const chosen = m != null && m === target;
+    // Lit is wherever the next ingredient goes - the new meal included, once it has a
+    // number of its own.
+    const chosen = m === target;
     const label = el('div', span + 'top:0;height:' + (BRACKET_H - 9) + 'px;text-align:center;display:flex;' +
-      'justify-content:center;align-items:flex-start' + (m != null ? ';cursor:pointer' : ''));
+      'justify-content:center;align-items:flex-start;cursor:pointer');
     label.appendChild(el('div',
       "font:600 13px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;" +
       (chosen
         ? 'background:#FF0000;color:#270E0E;border-radius:4px;padding:3px 5px 3px 6px'
         : 'color:#FF0000'),
       String(mi + 1)));
-    if (m != null) label.addEventListener('click', () => chooseMeal(chosen ? null : m));
+    label.addEventListener('click', () => chooseMeal(chosen ? null : m));
     track.appendChild(label);
     at += items.length;
     renderTiles(items, strip);
