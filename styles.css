@@ -39,6 +39,46 @@ body {
   background: #FF0000;
 }
 
+/* ── on a wide screen: the phone, on a quiet page ──
+   Phones and the installed app never see any of this; it is for a browser window too
+   wide to be the app's own screen. The canvas keeps the rounded glass of the phone it
+   was drawn at (402x874, a 6.3" iPhone), sits in a bezel, and the page around it goes
+   to a warm off-white that neither the red nor the sage fights with. */
+#frame, #island { display: none; pointer-events: none; }
+
+body.framed #frame {
+  display: block;
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* the canvas plus a 13px bezel all round, in canvas px; scaled with it by layout() */
+  width: 428px;
+  height: 900px;
+  border-radius: 68px;
+  transform-origin: 0 0;
+  z-index: 0;
+  background: #1A1414;
+  box-shadow:
+    inset 0 0 0 1.5px #3A3030,
+    0 2px 4px rgba(39, 14, 14, .08),
+    0 24px 60px rgba(39, 14, 14, .16);
+}
+
+body.framed #stage { clip-path: inset(0 round 55px); }
+
+body.framed #island {
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: 11px;
+  width: 124px;
+  height: 36px;
+  margin-left: -62px;
+  border-radius: 18px;
+  background: #000;
+  z-index: 100;
+}
+
 #stage {
   position: absolute;
   left: 0;

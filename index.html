@@ -21,6 +21,10 @@
 
 <div id="backdrop"></div>
 
+<!-- On a wide screen the app is shown as the phone it was drawn for: this is the body
+     of that phone, behind the canvas. Hidden everywhere else. -->
+<div id="frame" aria-hidden="true"></div>
+
 <div id="stage">
 
 <!-- ═══════════════════════════ HOME ═══════════════════════════ -->
@@ -312,6 +316,9 @@
     </div>
   </div>
 </div>
+
+<!-- The island the canvas's top 58px were always left clear for. Only in the frame. -->
+<div id="island" aria-hidden="true"></div>
 
 </div>
 

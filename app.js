@@ -555,20 +555,44 @@ function viewSize() {
   return { w, h };
 }
 
+// A browser window at least this wide is not a phone held upright, so the app is shown
+// as one, in its frame (see body.framed). Installed, it is always the whole screen.
+const FRAME_MIN_W = 600;
+const FRAME_BEZEL = 13;        // canvas px, matching #frame's size in the stylesheet
+const FRAME_PAGE = [243, 242, 236];   // the off-white the phone sits on
+let framed = false;
+
 function layout() {
   const { w: vw, h: vh } = viewSize();
   // The page is as tall as the glass, not as the viewport iOS reports (see #stage).
   document.documentElement.style.height = vh + 'px';
   document.body.style.height = vh + 'px';
   window.scrollTo(0, 0);
-  const fit = Math.min(vw / 402, vh / 874);
-  const fill = Math.max(vw / 402, vh / 874);
-  // Every current iPhone is within a hair of the canvas's own shape, so filling costs a
-  // point or two off the top and bottom; anything further off is fitted instead.
-  scale = fill / fit <= FILL_CROP ? fill : fit;
+  framed = !standalone && vw >= FRAME_MIN_W;
+  document.body.classList.toggle('framed', framed);
+  // Browsers that tint their own toolbar to the page's colour match the page it is on.
+  const tint = document.querySelector('meta[name="theme-color"]');
+  if (tint) tint.content = framed ? 'rgb(' + FRAME_PAGE.join(',') + ')' : '#FF0000';
+  if (framed) {
+    // Fitted with room around it, bezel and all, and never blown up past life size.
+    const room = Math.max(24, Math.round(vh * 0.05));
+    scale = Math.min(1, (vw - 2 * room) / (402 + 2 * FRAME_BEZEL),
+                        (vh - 2 * room) / (874 + 2 * FRAME_BEZEL));
+  } else {
+    const fit = Math.min(vw / 402, vh / 874);
+    const fill = Math.max(vw / 402, vh / 874);
+    // Every current iPhone is within a hair of the canvas's own shape, so filling costs a
+    // point or two off the top and bottom; anything further off is fitted instead.
+    scale = fill / fit <= FILL_CROP ? fill : fit;
+  }
   const ox = (vw - 402 * scale) / 2;
   offsetY = (vh - 874 * scale) / 2;
   stage.style.transform = 'translate(' + ox + 'px,' + offsetY + 'px) scale(' + scale + ')';
+  if (framed) {
+    const b = FRAME_BEZEL * scale;
+    $('frame').style.transform =
+      'translate(' + (ox - b) + 'px,' + (offsetY - b) + 'px) scale(' + scale + ')';
+  }
   stage.classList.add('ready');
   paintBackdrop();
 }
@@ -584,6 +608,10 @@ const SCRIM = [39, 14, 14], SCRIM_A = 0.22;
  * more of the same rather than as a band of the wrong red.
  */
 function paintRoot() {
+  if (framed) {
+    document.documentElement.style.backgroundColor = 'rgb(' + FRAME_PAGE.join(',') + ')';
+    return;
+  }
   const top = SCREEN_TOP[ui.screen] || SCREEN_TOP.home;
   const c = ui.settings ? top.map((v, i) => Math.round(v * (1 - SCRIM_A) + SCRIM[i] * SCRIM_A)) : top;
   document.documentElement.style.backgroundColor = 'rgb(' + c.join(',') + ')';
@@ -591,7 +619,9 @@ function paintRoot() {
 
 function paintBackdrop() {
   paintRoot();
-  if (ui.screen === 'home') backdrop.style.background = '#FF0000';
+  // In the frame the screen's edges end at the glass, so the page stays one quiet colour.
+  if (framed) backdrop.style.background = 'rgb(' + FRAME_PAGE.join(',') + ')';
+  else if (ui.screen === 'home') backdrop.style.background = '#FF0000';
   else if (ui.screen === 'calc') backdrop.style.background = '#270E0E';
   else if (ui.screen === 'calendar') backdrop.style.background = '#C0C3B0';
   else {
