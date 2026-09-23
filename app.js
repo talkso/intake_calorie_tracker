@@ -133,7 +133,12 @@ function normalize(parsed) {
       .sort((a, b) => a.t - b.t),
     goal: goal,
     goals: goals,
-    open: list('open').map(item).filter(real).sort((a, b) => a.t - b.t),
+    // An open ingredient may be headed for a meal already committed (see mealTarget),
+    // and that has to survive a reload as much as the ingredient does.
+    open: list('open')
+      .map(e => { const o = item(e); const m = Number(e && e.m); if (e && e.m != null && Number.isFinite(m)) o.m = m; return o; })
+      .filter(real)
+      .sort((a, b) => a.t - b.t),
     // The month the log begins at. Null until the app has had a first run to remember.
     start: Number.isFinite(parsed && parsed.start) ? parsed.start : null
   };
@@ -204,6 +209,7 @@ const ui = {
   display: '0', pending: null, op: null, fresh: true,
   view: 'calc', selTile: null,
   showTotal: false,          // the dial reads the meal so far, not what was typed
+  addTo: null,               // a committed meal chosen to add to, before anything has been
   histX: 0,                  // pixels the history row is dragged left of its start
   range: '7D',
   selDay: null, mealSelDay: null,   // selection keyed by day, so a slide cannot shift it
@@ -352,6 +358,39 @@ const viewOpen = () => {
 
 const openTotal = () => viewOpen().reduce((a, e) => a + e.v, 0);
 
+/**
+ * Which meal the open ingredients go into when the dial commits them: a meal already on
+ * the day, by its id, or null for a new one. Once anything is open the ingredients carry
+ * it themselves, so it is kept across a reload and cannot drift from what they hold;
+ * before then it is only a choice made in the history, and a choice of a meal that has
+ * since been emptied out of existence is no choice at all.
+ */
+function mealTarget() {
+  const open = viewOpen();
+  if (open.length) return open[0].m != null ? open[0].m : null;
+  if (ui.addTo != null && !viewEntries().some(e => e.m === ui.addTo)) ui.addTo = null;
+  return ui.addTo;
+}
+
+/** Points the meal being built at a meal already committed, or back at a new one. */
+function setMealTarget(m) {
+  ui.addTo = m;
+  const open = viewOpen();
+  for (const e of open) {
+    if (m == null) delete e.m;
+    else e.m = m;
+  }
+  if (open.length) save();
+}
+
+/** What the meal being built comes to so far, counting what it already held if it is
+    an existing one being added to. */
+function mealTotal() {
+  const m = mealTarget();
+  const had = m == null ? 0 : viewEntries().filter(e => e.m === m).reduce((a, e) => a + e.v, 0);
+  return had + openTotal();
+}
+
 /** A stamp on the day Home is showing, nudged until no other item shares it. */
 function stamp() {
   let t = dayAt(ui.day).getTime();
@@ -366,15 +405,21 @@ function addIngredient(v) {
   // Added to a day that has already been and gone, so the time on the stamp is only
   // the time it was typed in. Marked as having no time rather than given a wrong one.
   if (ui.day > 0) item.n = 1;
+  const m = mealTarget();
+  if (m != null) item.m = m;
   store.open.push(item);
   save();
   return true;
 }
 
-/** The whole meal goes through at once, its ingredients sharing the id of the first. */
+/**
+ * The whole meal goes through at once, its ingredients sharing the id of the first -
+ * or, added to a meal already committed, that meal's id. Then they are simply more of
+ * it: one meal on the chart, still timed from when it began.
+ */
 function commitItems(items) {
   if (!items.length) return false;
-  const id = items[0].t;
+  const id = items[0].m != null ? items[0].m : items[0].t;
   const drop = new Set(items.map(e => e.t));
   for (const it of items) {
     const row = { v: it.v, t: it.t, m: id };
@@ -388,7 +433,11 @@ function commitItems(items) {
   return true;
 }
 
-function commitMeal() { return commitItems(viewOpen()); }
+function commitMeal() {
+  const done = commitItems(viewOpen());
+  ui.addTo = null;             // the next meal is a new one unless another is chosen
+  return done;
+}
 
 /**
  * A meal still open when the day turns over was eaten on the day it was started, so the
@@ -413,6 +462,7 @@ function closeStaleMeals() {
 
 /** Throws away the meal being built, and only that: another day's is not this one's. */
 function cancelMeal() {
+  ui.addTo = null;
   const items = viewOpen();
   if (!items.length) return;
   const drop = new Set(items.map(e => e.t));
@@ -705,7 +755,10 @@ function arrive(screen) {
     ui.pending = null;
     ui.op = null;
     ui.fresh = true;
-    ui.showTotal = openTotal() > 0;
+    // A meal chosen to add to and then left with nothing added is not carried in: every
+    // visit starts on a new meal unless ingredients already on their way say otherwise.
+    ui.addTo = null;
+    ui.showTotal = mealTotal() > 0;
   }
   // Stats always opens where it rests: the range and the scrub are both ways of looking
   // around rather than places, so neither is carried back in from the last visit.
@@ -1276,7 +1329,12 @@ function renderCalc() {
   // readout will actually occupy, not the ones it happens to occupy in passing. The
   // easer takes it over at the end of the render and carries it there.
   $('calc-pct-ink').textContent = Math.round(raw * 100) + '%';
-  renderSegments(ui.showTotal ? String(openTotal()) : ui.display);
+  renderSegments(ui.showTotal ? String(mealTotal()) : ui.display);
+  // Adding to a meal already on the day says which, where the screen says what it is.
+  // Set before the zones below are measured: the arc keeps clear of this word too.
+  const target = mealTarget();
+  const at = target == null ? -1 : mealRows().findIndex(r => r.m === target);
+  $('calc-title').textContent = at >= 0 ? 'MEAL ' + (at + 1) : 'CALC';
 
   // Keep the arc's leading edge out of the type on the band. Half-covered, a word has no
   // single readable colour; snapped clear of it, one flat colour always works. Only
@@ -1396,17 +1454,52 @@ const HIST_W = 354;          // the strip, the canvas less its 24px margins
 
 const BRACKET_H = 34;        // headroom cut off the top of the tiles for the meal bars
 
-/** The day's ingredients in meals, oldest first, with the meal still open at the end. */
+/**
+ * The day's ingredients in meals, oldest first, each as { m, items }. The meal still
+ * open goes at the end as a new one (m null), or, being added to a meal already there,
+ * joins the end of that one - which is where it will be once it is committed.
+ */
 function mealRows() {
   const byMeal = new Map();
   for (const e of viewEntries()) {
     if (!byMeal.has(e.m)) byMeal.set(e.m, []);
     byMeal.get(e.m).push(e);
   }
-  const rows = [...byMeal.entries()].sort((a, b) => a[0] - b[0]).map(g => g[1]);
   const open = viewOpen();
-  if (open.length) rows.push(open.slice());
+  const target = mealTarget();
+  if (open.length && target != null) {
+    if (!byMeal.has(target)) byMeal.set(target, []);
+    byMeal.get(target).push(...open);
+  }
+  const rows = [...byMeal.entries()].sort((a, b) => a[0] - b[0]).map(([m, items]) => ({ m, items }));
+  if (open.length && target == null) rows.push({ m: null, items: open.slice() });
   return rows;
+}
+
+// Long enough for the number that was tapped to be seen lighting up before the keypad
+// comes back over it.
+const CHOOSE_MS = 180;
+let chooseTimer = 0;
+
+/**
+ * A meal's number tapped in the history: what is typed next goes into that meal. The
+ * same number again lets it go, back to a new meal. Choosing one heads back to the
+ * keypad, because typing is the only thing left to do with the choice.
+ */
+function chooseMeal(m) {
+  clearTimeout(chooseTimer);
+  disarmTile();
+  setMealTarget(m);
+  // The readout becomes the meal's so far, unless a figure is part way through being typed.
+  if (ui.fresh && ui.op == null) ui.showTotal = mealTotal() > 0;
+  render();
+  if (m == null) return;
+  chooseTimer = setTimeout(() => {
+    if (ui.screen !== 'calc' || ui.view !== 'history') return;
+    histSlider.stop();
+    ui.view = 'calc';
+    slideView('history', 'calc');
+  }, CHOOSE_MS);
 }
 
 function histCount() { return viewEntries().length + viewOpen().length; }
@@ -1447,17 +1540,30 @@ function renderHistory() {
   track.appendChild(strip);
   host.appendChild(track);
 
+  const target = mealTarget();
   let at = 0;
-  rows.forEach((items, mi) => {
+  rows.forEach(({ m, items }, mi) => {
     // A tile's top edge runs from its slant to its full width, so a meal's bar spans
     // from the first tile's top left corner to the last one's top right.
     const x0 = at * TILE_PITCH + TILE_SLANT;
     const x1 = (at + items.length - 1) * TILE_PITCH + TILE_W;
     const span = 'position:absolute;left:' + x0.toFixed(2) + 'px;width:' + (x1 - x0).toFixed(2) + 'px;';
     track.appendChild(el('div', span + 'top:' + (BRACKET_H - 9) + 'px;height:2px;background:#FF0000'));
-    track.appendChild(el('div',
-      span + "top:0;text-align:center;color:#FF0000;font:600 13px/1 'IBM Plex Mono',monospace;" +
-      'letter-spacing:.1em', String(mi + 1)));
+    // The whole width of the meal and the whole height down to its bar answers to a tap,
+    // not just the digit. The one being added to is lit: red ground, dark figure, the
+    // way everything else in the app that is switched on is drawn. The ground hangs down
+    // from the top of the row rather than up past it, where the history cuts off.
+    const chosen = m != null && m === target;
+    const label = el('div', span + 'top:0;height:' + (BRACKET_H - 9) + 'px;text-align:center;display:flex;' +
+      'justify-content:center;align-items:flex-start' + (m != null ? ';cursor:pointer' : ''));
+    label.appendChild(el('div',
+      "font:600 13px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;" +
+      (chosen
+        ? 'background:#FF0000;color:#270E0E;border-radius:4px;padding:3px 5px 3px 6px'
+        : 'color:#FF0000'),
+      String(mi + 1)));
+    if (m != null) label.addEventListener('click', () => chooseMeal(chosen ? null : m));
+    track.appendChild(label);
     at += items.length;
     renderTiles(items, strip);
   });
@@ -2201,7 +2307,8 @@ function settle() {
   ui.pending = null;
   ui.op = null;
   ui.fresh = true;
-  ui.showTotal = openTotal() > 0;
+  ui.addTo = null;
+  ui.showTotal = mealTotal() > 0;
   // The month on show may no longer be one the log reaches back to.
   if (ui.calMonth && ui.calMonth < calFloor()) ui.calMonth = calFloor();
 }
