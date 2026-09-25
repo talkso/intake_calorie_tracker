@@ -2664,6 +2664,9 @@ const SWIPE_FLING = 0.2;     // canvas px/ms: a flick this quick goes whatever t
 const SETTLE_RATE = 13;
 const SWIPE_LOOK = 100;      // ms of movement the release speed is taken over
 const SWIPE_HELD = 60;       // ms of stillness before lifting that cancel a flick
+// Canvas px a settling screen must still have to go for a press to catch it. Nearer than
+// this it has, to the eye, arrived (see the pointerdown handler).
+const SWIPE_CATCH = 40;
 // With nowhere to go, the screen still gives under the finger, but less and less.
 const RUBBER = 0.55;
 
@@ -2777,6 +2780,7 @@ function letGo(t) {
 // swung beyond the edge would show the empty stage behind it.
 function settleDrag(target, v0, commit) {
   drag.settling = true;
+  drag.target = target;
   drag.commit = commit;
   drag.v = v0;
   let last = performance.now();
@@ -2831,6 +2835,24 @@ stage.addEventListener('pointerdown', e => {
   // Caught while still settling: picked up from wherever it has got to, the same as
   // any drag, and decided again on the next release.
   if (drag && drag.settling) {
+    // As good as there: the spring's last stretch is a creep too small to see, and a press
+    // made then is meant for the screen that has, to the eye, already arrived - the chart
+    // on stats, say - not for catching it. So it lands now, and the press is handed on to
+    // whatever is under it. It has to be handed on: while it was still coming in, that
+    // screen was not taking presses, so nothing on it has heard this one.
+    if (Math.abs(drag.x - drag.target) <= SWIPE_CATCH) {
+      endDrag();
+      const under = document.elementFromPoint(e.clientX, e.clientY);
+      if (under && stage.contains(under)) {
+        under.dispatchEvent(new PointerEvent('pointerdown', {
+          bubbles: true, cancelable: true, composed: true,
+          clientX: e.clientX, clientY: e.clientY, screenX: e.screenX, screenY: e.screenY,
+          pointerId: e.pointerId, pointerType: e.pointerType, isPrimary: e.isPrimary,
+          button: e.button, buttons: e.buttons
+        }));
+      }
+      return;
+    }
     cancelAnimationFrame(settleRaf);
     Object.assign(drag, {
       settling: false, id: e.pointerId, x0: e.clientX, y0: e.clientY,
