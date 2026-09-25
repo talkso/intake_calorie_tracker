@@ -167,7 +167,7 @@ body.framed #island {
 
   /* the two dials, over their own ground */
   .dial-btn:hover { background: rgba(255, 0, 0, .17) !important; }
-  .dial-btn-home:hover { background: rgba(39, 14, 14, .14) !important; }
+  .dial-btn-home:hover { background: rgba(39, 14, 14, .09) !important; }
   /* Pressed has to win over hover, and a pressed dial is always also a hovered one. */
   .dial-btn:hover:active { background: rgba(255, 0, 0, .3) !important; }
   .dial-btn-home:hover:active { background: rgba(39, 14, 14, .34) !important; }
@@ -176,7 +176,7 @@ body.framed #island {
   .k:hover, .btn-close:hover, #stats-home-btn:hover, #calc-settings-btn:hover,
   .day-badge:hover, .day-opt:hover, .tile:not(.armed):hover, .cal-cell.is-red:hover,
   .meal-num:hover .lit {
-    filter: brightness(.8);
+    filter: brightness(.88);
   }
 
   /* near-black grounds: lighter */
@@ -186,10 +186,10 @@ body.framed #island {
   }
 
   /* outlines: filled in with their own colour */
-  #home-settings-btn:hover { background: rgba(39, 14, 14, .2); }
-  #stats-settings-btn:hover, #cal-settings-btn:hover { background: rgba(255, 0, 0, .18); }
-  .ask-btn:not(.ask-go):hover { background: rgba(39, 14, 14, .14) !important; }
-  .cal-cell:not(.is-red):not(.is-dark):hover { background: rgba(39, 14, 14, .3) !important; }
+  #home-settings-btn:hover { background: rgba(39, 14, 14, .13); }
+  #stats-settings-btn:hover, #cal-settings-btn:hover { background: rgba(255, 0, 0, .12); }
+  .ask-btn:not(.ask-go):hover { background: rgba(39, 14, 14, .09) !important; }
+  .cal-cell:not(.is-red):not(.is-dark):hover { background: rgba(39, 14, 14, .23) !important; }
 
   /* words */
   .view-toggle:hover, .meal-num:hover div:not(.lit) { color: #FF8272 !important; }
