@@ -86,6 +86,11 @@ const STORE_KEY = 'intake.v1';
 // and carried over the first time this one is written.
 const WAS_KEY = 'countcal.v1';
 
+// What a new log starts with. Only a starting point: a maximum already set, and a start
+// month already chosen, are never touched by these.
+const DEFAULT_GOAL = 1800;
+const DEFAULT_LEAD = 2;      // months the log reaches back before the current one
+
 const store = load();
 
 function load() {
@@ -113,7 +118,7 @@ function normalize(parsed) {
   const real = e => Number.isFinite(e.v) && e.v > 0 && Number.isFinite(e.t);
   const list = k => (Array.isArray(parsed && parsed[k]) ? parsed[k] : []);
 
-  const goal = Number.isFinite(parsed && parsed.goal) ? Math.round(parsed.goal) : 1900;
+  const goal = Number.isFinite(parsed && parsed.goal) ? Math.round(parsed.goal) : DEFAULT_GOAL;
   // Every maximum the day has ever been held to, so a past day can still be read
   // against the figure it was actually kept to. t is when the figure took effect; the
   // first one reaches back to the beginning, since there was nothing before it.
@@ -317,11 +322,18 @@ function setGoalOn(d, v) {
   save();
 }
 
-/** The month the log begins at, remembered the first time anything needs to know. */
+/**
+ * The month the log begins at, remembered the first time anything needs to know: a
+ * couple of months back from this one, so there is room to fill in the recent past -
+ * or further, if something logged already reaches further, since a start is never
+ * allowed to hide what is there.
+ */
 function ensureStart() {
   if (Number.isFinite(store.start)) return;
-  const first = store.entries.length ? new Date(store.entries[0].t) : new Date();
-  store.start = monthStart(first).getTime();
+  const lead = monthStart(new Date());
+  lead.setMonth(lead.getMonth() - DEFAULT_LEAD);
+  const first = store.entries.length ? monthStart(new Date(store.entries[0].t)) : lead;
+  store.start = Math.min(first.getTime(), lead.getTime());
   save();
 }
 
@@ -883,7 +895,9 @@ function renderHome() {
   // The day on show was kept to the maximum that was in force on it, not to the one
   // in force now - which is also the figure the sheet edits while it is the day on show.
   const g = goalOn(ui.day);
-  const logged = viewLogged();
+  // A meal still open in the calculator counts here too: it has been eaten, or is being,
+  // whether or not the dial has been pressed to finish it off.
+  const logged = viewLogged() + openTotal();
 
   $('home-max').textContent = g + ' cal maximum.';
   $('home-day').textContent = dayLabel(ui.day);
@@ -2767,9 +2781,12 @@ function letGo(t) {
     else commit = Math.abs(drag.x) > SWIPE_COMMIT * SWIPE_W;
   }
   if (drag.still) {
-    const to = drag.to;
+    const { to, from } = drag;
     drag = null;
-    if (commit) go(to);
+    if (commit) {
+      if (from === 'calc') holdMeal();
+      go(to);
+    }
     return;
   }
   settleDrag(commit ? drag.side * SWIPE_W : 0, drag.to ? v * 1000 : 0, commit);
@@ -2802,6 +2819,17 @@ function settleDrag(target, v0, commit) {
   settleRaf = requestAnimationFrame(step);
 }
 
+/**
+ * Swiped out of the calculator: the meal stays open, to be finished with the dial when
+ * you come back to it, but a figure typed and never added goes into it rather than being
+ * lost - and Home, which counts the open meal, travels to take it in.
+ */
+function holdMeal() {
+  const before = openTotal();
+  addIngredient(typedValue());
+  if (openTotal() !== before) ui.animHome = true;
+}
+
 /** Takes the screens out of the swipe; carried over, the one brought in is arrived at. */
 function endDrag() {
   const d = drag;
@@ -2810,7 +2838,10 @@ function endDrag() {
   // Every screen, not only the two this swipe knew about: nothing it touched, and
   // nothing a gesture before it might have left out, stays on show.
   endSlide();
-  if (d.commit && d.to) go(d.to, true);
+  if (d.commit && d.to) {
+    if (d.from === 'calc') holdMeal();
+    go(d.to, true);
+  }
 }
 
 /** Abandons a swipe where it stands, for something else that is taking the screen. */
