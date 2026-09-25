@@ -973,7 +973,10 @@ function openPicker() {
   render();
   pickTuck = false;
   void $('home-picker').offsetWidth;    // laid out tucked first, so they travel
-  tuckStack(false, false);
+  const kids = tuckStack(false, false);
+  // The circle that was tapped answers it the way it does on the way back: dark, for a
+  // moment, then back to red as the rest of the stack arrives under it.
+  if (kids.length && !(stillMotion && stillMotion.matches)) kids[0].classList.add('flash');
 }
 
 function closePicker() {
@@ -1102,7 +1105,8 @@ function renderCalendar() {
         : future ? 'background:rgba(39,14,14,.07);color:rgba(39,14,14,.24);'
                  : 'background:rgba(39,14,14,.15);color:rgba(39,14,14,.6);'), String(n));
     if (!future) {
-      cell.className = 'cal-cell';
+      // Named for its ground, which is all a hover needs to know to go lighter or darker.
+      cell.className = 'cal-cell' + (selected ? ' is-red' : bucket ? ' is-dark' : '');
       cell.addEventListener('click', () => { ui.day = back; go('home'); });
     }
     grid.appendChild(cell);
@@ -1558,12 +1562,15 @@ function renderHistory() {
     const chosen = m === target;
     const label = el('div', span + 'top:0;height:' + (BRACKET_H - 9) + 'px;text-align:center;display:flex;' +
       'justify-content:center;align-items:flex-start;cursor:pointer');
-    label.appendChild(el('div',
+    label.className = 'meal-num';
+    const num = el('div',
       "font:600 13px/1 'IBM Plex Mono',monospace;letter-spacing:.1em;" +
       (chosen
         ? 'background:#FF0000;color:#270E0E;border-radius:4px;padding:3px 5px 3px 6px'
         : 'color:#FF0000'),
-      String(mi + 1)));
+      String(mi + 1));
+    if (chosen) num.className = 'lit';
+    label.appendChild(num);
     label.addEventListener('click', () => chooseMeal(chosen ? null : m));
     track.appendChild(label);
     at += items.length;
