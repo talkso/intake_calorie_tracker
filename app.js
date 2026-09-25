@@ -974,9 +974,11 @@ function openPicker() {
   pickTuck = false;
   void $('home-picker').offsetWidth;    // laid out tucked first, so they travel
   const kids = tuckStack(false, false);
-  // The circle that was tapped answers it the way it does on the way back: dark, for a
-  // moment, then back to red as the rest of the stack arrives under it.
-  if (kids.length && !(stillMotion && stillMotion.matches)) kids[0].classList.add('flash');
+  // The circle that was tapped answers with a flick of dark, like any press - unless it
+  // is the day on show, which is dark for as long as the stack is open anyway.
+  if (kids.length && !kids[0].classList.contains('on') && !(stillMotion && stillMotion.matches)) {
+    kids[0].classList.add('flash');
+  }
 }
 
 function closePicker() {
@@ -990,7 +992,17 @@ function closePicker() {
   const kids = tuckStack(true, true);
   // The circle on the badge takes the badge's day with it, so the hand-over at the end
   // of the fold is between two things that say the same thing.
-  if (kids.length) kids[0].textContent = dayLabel(ui.day);
+  // It is handing over to the badge, which is red, so it goes back to red on the way -
+  // a dark circle that turned red in the last frame would read as a blink.
+  // Let go of the dark a frame late: picked, it has only just gone dark, and a change
+  // made in the same frame would never be seen at all.
+  if (kids.length) {
+    const hand = kids[0];
+    hand.textContent = dayLabel(ui.day);
+    hand.classList.remove('flash');
+    hand.classList.add('fading');
+    requestAnimationFrame(() => requestAnimationFrame(() => hand.classList.remove('on')));
+  }
   clearTimeout(pickTimer);
   pickTimer = setTimeout(() => {
     pickClosing = false;
@@ -1022,7 +1034,9 @@ function renderPicker() {
     const opt = el('div', DAY_OPT_STYLE + 'z-index:' + (last - i) +
       (pickTuck ? tuckStyle(i) : ''),
       day === null ? 'LOG.' : dayLabel(day));
-    opt.className = 'day-opt';
+    // The day on show is the dark one, so the stack says where you are as well as where
+    // you could go.
+    opt.className = day !== null && day === ui.day ? 'day-opt on' : 'day-opt';
     opt.addEventListener('click', () => {
       if (day === null) {
         ui.picker = false;
@@ -1031,6 +1045,9 @@ function renderPicker() {
         return;
       }
       ui.day = day;
+      // Picked, it takes the dark over at once and keeps it as the stack folds away.
+      for (const k of host.children) k.classList.remove('on');
+      opt.classList.add('on');
       closePicker();
       render();
     });

@@ -180,7 +180,7 @@ body.framed #island {
   }
 
   /* near-black grounds: lighter */
-  .k-alt:hover, #home-stats-btn:hover, .range-btn:hover, .cal-cell.is-dark:hover,
+  .k-alt:hover, #home-stats-btn:hover, .range-btn:hover, .cal-cell.is-dark:hover, .day-opt.on:hover,
   #home-cal-btn:hover, .ask-go:hover, #alarm:hover {
     filter: brightness(2.2);
   }
@@ -227,8 +227,10 @@ body.framed #island {
 /* Pressed, the badge goes dark the way a day in the stack does when it is picked, and the
    circle that takes its place as the stack opens holds that for a moment (.flash). */
 .day-badge:active { background-color: #270E0E !important; color: #FF0000 !important; }
-@keyframes day-flash { 0%, 55% { background-color: #270E0E; color: #FF0000; } }
-.day-opt.flash { animation: day-flash 700ms ease-out; }
+@keyframes day-flash { 0%, 35% { background-color: #270E0E; color: #FF0000; } }
+.day-opt.flash { animation: day-flash 220ms ease-out; }
+/* The day on show, dark for as long as the stack is open. */
+.day-opt.on { background-color: #270E0E !important; color: #FF0000 !important; }
 
 .day-opt {
   cursor: pointer;
@@ -238,6 +240,14 @@ body.framed #island {
      keeps the run from pressing together while it unfolds. */
   transition: transform var(--pick-ms, 300ms) cubic-bezier(.22, .61, .36, 1),
               opacity var(--pick-ms, 300ms) ease-out;
+}
+/* Going dark is instant, like any press. Only the circle handing over to the red badge at
+   the end of the fold eases back to red, so the hand-over does not blink. */
+.day-opt.fading {
+  transition: transform var(--pick-ms, 300ms) cubic-bezier(.22, .61, .36, 1),
+              opacity var(--pick-ms, 300ms) ease-out,
+              background-color var(--pick-ms, 300ms) ease-out,
+              color var(--pick-ms, 300ms) ease-out;
 }
 .day-opt:active { background-color: #270E0E !important; color: #FF0000 !important; }
 
