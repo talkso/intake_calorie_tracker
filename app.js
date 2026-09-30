@@ -587,9 +587,16 @@ let scale = 1, offsetY = 0;
 const standalone = navigator.standalone === true ||
   !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
 
-// Up to this much of the canvas may be cropped to fill the screen outright rather
-// than leave a hairline of letterbox down the sides.
-const FILL_CROP = 1.02;
+// ── any shape of screen ──────────────────────────────────────────────────────
+// The design is one 402x874 canvas, and it is always shown whole: scaled until it fits,
+// never cropped. A screen of any other shape has room left over, above and below or to
+// either side, and that room is not left blank. Everything that belongs to the edges
+// of the screen - each screen's ground, the panels and sheets that run edge to edge,
+// the scrims - reaches out into it, by --bx either side and --by above and below, in
+// canvas px (see "bleed" in the stylesheet). The content itself - words, buttons,
+// dials - keeps its place in the design, and a dial that ran off the canvas's edge now
+// carries on past it instead of being cut there. A swipe crosses the whole of it.
+let bleedX = 0, bleedY = 0;
 
 function viewSize() {
   const vv = window.visualViewport;
@@ -635,15 +642,19 @@ function layout() {
     scale = Math.min(1, (vw - 2 * room) / (402 + 2 * FRAME_BEZEL),
                         (vh - 2 * room) / (874 + 2 * FRAME_BEZEL));
   } else {
-    const fit = Math.min(vw / 402, vh / 874);
-    const fill = Math.max(vw / 402, vh / 874);
-    // Every current iPhone is within a hair of the canvas's own shape, so filling costs a
-    // point or two off the top and bottom; anything further off is fitted instead.
-    scale = fill / fit <= FILL_CROP ? fill : fit;
+    scale = Math.min(vw / 402, vh / 874);
   }
   const ox = (vw - 402 * scale) / 2;
   offsetY = (vh - 874 * scale) / 2;
   stage.style.transform = 'translate(' + ox + 'px,' + offsetY + 'px) scale(' + scale + ')';
+  // In the frame the glass is exactly the canvas, so there is nothing to reach into.
+  // A fraction of a pixel over, so a scaled edge never leaves a hairline.
+  bleedX = framed ? 0 : Math.ceil(ox / scale) + 1;
+  bleedY = framed ? 0 : Math.ceil(offsetY / scale) + 1;
+  SWIPE_W = 402 + 2 * bleedX;
+  stage.style.setProperty('--bx', bleedX + 'px');
+  stage.style.setProperty('--by', bleedY + 'px');
+  stage.style.setProperty('--slide-w', SWIPE_W + 'px');
   if (framed) {
     const b = FRAME_BEZEL * scale;
     $('frame').style.transform =
@@ -2693,7 +2704,9 @@ const SWIPE_KEEP = {
 // over if it is more than SWIPE_COMMIT of the way there or was flicked that way, and
 // back where it started otherwise. How it gets there is a spring that starts at the
 // finger's own speed, so a flick keeps its momentum and a slow drag eases home.
-const SWIPE_W = 402;         // canvas px: a screen's width, and so a whole swipe
+// Canvas px: a screen's width and so a whole swipe - the canvas plus the room either side
+// of it on a screen wider than the design (set by layout()).
+let SWIPE_W = 402;
 const SWIPE_SLOP = 6;        // canvas px a finger can wander before it picks a direction
 const SWIPE_COMMIT = 0.25;   // share of the way across past which letting go carries on
 const SWIPE_FLING = 0.2;     // canvas px/ms: a flick this quick goes whatever the distance
@@ -3013,6 +3026,12 @@ function editing() {
 window.addEventListener('scroll', () => {
   if (editing()) return;
   if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+});
+// And the body, which is its own scroller where overflow:clip is not understood: the
+// screens reach past the canvas, so it has sideways room a browser could scroll into.
+document.body.addEventListener('scroll', () => {
+  const b = document.body;
+  if (!editing() && (b.scrollLeft || b.scrollTop)) { b.scrollLeft = 0; b.scrollTop = 0; }
 });
 // Measured again once the keyboard has gone, in case anything really did change under it.
 document.addEventListener('focusout', () => setTimeout(() => {
