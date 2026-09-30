@@ -67,7 +67,7 @@
 
   <!-- Day picker. The first circle lands exactly on the badge, so opening it reads as the
        badge growing a stack rather than a panel appearing over it. -->
-  <div id="home-picker-backdrop" style="position:absolute;inset:0;z-index:19;display:none"></div>
+  <div id="home-picker-backdrop" class="bleed-x bleed-t bleed-b" style="position:absolute;inset:0;z-index:19;display:none"></div>
   <!-- The tail of the fade runs to zero just short of the bottom edge, so the circle
        queued behind the faded one never shows its arc below it. -->
   <div id="home-picker" style="position:absolute;left:31px;top:211px;width:123px;height:491px;z-index:20;display:none;-webkit-mask-image:linear-gradient(to bottom,#000 0,#000 75%,rgba(0,0,0,.4) 88%,rgba(0,0,0,.4) 92%,rgba(0,0,0,0) 99.5%);mask-image:linear-gradient(to bottom,#000 0,#000 75%,rgba(0,0,0,.4) 88%,rgba(0,0,0,.4) 92%,rgba(0,0,0,0) 99.5%)">
@@ -131,7 +131,7 @@
     <div id="calc-title" style="font:600 14px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;color:#270E0E">CALC</div><div id="calc-settings-btn" class="dot-btn" role="button" tabindex="0" aria-label="Settings" style="width:29px;height:29px;border-radius:50%;background:#FF0000;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#270E0E"></div></div>
   </div>
 
-  <div style="position:absolute;left:0;right:0;top:0;height:534px;overflow:hidden;z-index:3">
+  <div style="position:absolute;left:0;right:0;top:0;height:534px;z-index:3;clip-path:inset(calc(var(--by,0px) * -1) calc(var(--bx,0px) * -1) 0 calc(var(--bx,0px) * -1))">
   <div style="position: absolute; left: -93px; top: 108px; width: 520px; height: 520px; z-index: 3">
     <div style="position: absolute; inset: -49px 0px 0px -6px; border-radius: 50%; mask: radial-gradient(circle closest-side, transparent 0px, transparent 45%, rgb(0, 0, 0) 45%, rgb(0, 0, 0) 100%); -webkit-mask: radial-gradient(circle closest-side, transparent 0px, transparent 45%, rgb(0, 0, 0) 45%, rgb(0, 0, 0) 100%); width: 599px; height: 599px; left: -3px; top: -51px; background-color: #270E0E"><div id="calc-arc-fill" style="position: absolute; inset: 0; border-radius: 50%; z-index: 2; background-color: #FF0000; -webkit-mask: conic-gradient(from 340deg,#000 0 152deg,rgba(0,0,0,0) 152.7deg 360deg); mask: conic-gradient(from 340deg,#000 0 152deg,rgba(0,0,0,0) 152.7deg 360deg); left: -31px; top: -15px"></div><div id="calc-arc-tail" style="position:absolute;left:299.50px;top:418.07px;width:164.7px;height:164.7px;border-radius:50%;z-index:2;background-color:#FF0000"></div><div id="calc-arc-cap" style="position:absolute;left:142.85px;top:12.95px;width:164.7px;height:164.7px;border-radius:50%;z-index:2;background-color:#FF0000"></div></div>
 
@@ -219,16 +219,16 @@
   <!-- Backing bled past the canvas edge so the panel's own edge antialiases against red
        rather than the sage ground when the stage is scaled by a fraction. Clipped away
        entirely at 1:1, and nothing inside the panel moves. -->
-  <div style="position:absolute;left:-2px;right:-2px;top:500px;bottom:0;background:#FF0000;z-index:8"></div>
+  <div class="bleed-x bleed-b" style="position:absolute;left:-2px;right:-2px;top:500px;bottom:0;background:#FF0000;z-index:8"></div>
 
-  <div style="position:absolute;left:0;right:0;top:500px;bottom:0;background:#FF0000;overflow:hidden;z-index:8">
+  <div style="position:absolute;left:0;right:0;top:500px;bottom:0;background:#FF0000;z-index:8;clip-path:inset(0 calc(var(--bx,0px) * -1) 0 calc(var(--bx,0px) * -1))">
     <div id="stats-meal-labels" class="scrubbable track" style="position:absolute;left:24px;right:24px;top:18px;height:12px;color:#270E0E"></div>
 
     <div style="position:absolute;left:24px;right:24px;top:31px;height:2px;background:rgba(39,14,14,.55)"></div>
 
     <div id="stats-meal-cols" class="scrubbable track" style="position:absolute;left:24px;right:24px;top:37px;height:176px"></div>
 
-    <div id="stats-sel-times" style="position:absolute;left:-2px;right:-2px;top:235px;bottom:118px;background:#270E0E;padding:14px 26px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-start;gap:12px;overflow:hidden">
+    <div id="stats-sel-times" class="bleed-x" style="position:absolute;left:-2px;right:-2px;top:235px;bottom:118px;background:#270E0E;padding:14px 26px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-start;gap:12px;overflow:hidden">
       <div id="stats-sel-caption" style="color:#FF0000;font:600 9.5px/1 'IBM Plex Mono',monospace;letter-spacing:.2em;white-space:nowrap"></div>
       <div id="stats-sel-list" style="display:flex;flex-wrap:wrap;gap:8px 20px;align-items:flex-end"></div>
     </div>
@@ -249,13 +249,13 @@
      it is not one of the screens: the strip of that screen left showing along the top
      is both the way back and the thing that says which way to put it away. -->
 <div id="settings" style="position:absolute;inset:0;z-index:40;display:none">
-  <div id="settings-scrim" style="position:absolute;inset:0;background:rgba(39,14,14,.22)"></div>
+  <div id="settings-scrim" class="bleed-x bleed-t bleed-b" style="position:absolute;inset:0;background:rgba(39,14,14,.22)"></div>
 
-  <div id="settings-sheet" style="position:absolute;left:0;right:0;top:96px;bottom:0;background:#C0C3B0;border-radius:26px 26px 0 0;overflow:hidden;font-family:Archivo,sans-serif">
+  <div id="settings-sheet" class="bleed-x bleed-b" style="position:absolute;left:0;right:0;top:96px;bottom:0;background:#C0C3B0;border-radius:26px 26px 0 0;overflow:hidden;font-family:Archivo,sans-serif">
     <div style="position:absolute;left:50%;top:15px;margin-left:-22px;width:44px;height:4px;border-radius:2px;background:rgba(39,14,14,.22)"></div>
     <div style="position:absolute;left:0;right:0;top:46px;text-align:center;color:#270E0E;font:600 17px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;pointer-events:none">settings</div>
 
-    <div style="position:absolute;left:24px;right:24px;bottom:76px;display:flex;flex-direction:column;align-items:flex-end;gap:34px;text-align:right">
+    <div class="bleed-body" style="position:absolute;left:24px;right:24px;bottom:76px;display:flex;flex-direction:column;align-items:flex-end;gap:34px;text-align:right">
 
       <div style="align-self:stretch;display:flex;flex-direction:column;align-items:flex-end;gap:11px">
         <div id="set-goal-cap" class="set-cap">MAXIMUM CALORIES</div>
@@ -299,7 +299,7 @@
      out: the two answers are the only things on it, and they are nowhere near the word
      that was tapped to get here. -->
 <div id="ask" style="position:absolute;inset:0;z-index:50;display:none" role="dialog" aria-modal="true" aria-labelledby="ask-text">
-  <div id="ask-scrim" style="position:absolute;inset:0;background:rgba(39,14,14,.55)"></div>
+  <div id="ask-scrim" class="bleed-x bleed-t bleed-b" style="position:absolute;inset:0;background:rgba(39,14,14,.55)"></div>
 
   <!-- Held by its bottom edge rather than its middle, because that edge is the one that
        has to land somewhere: clear of the month below it, and far enough past the month
