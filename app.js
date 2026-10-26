@@ -648,8 +648,16 @@ const FRAME_BEZEL = 13;        // canvas px, matching #frame's size in the style
 const FRAME_PAGE = [243, 242, 236];   // the off-white the phone sits on
 let framed = false;
 
+// What the last layout was worked out from. iOS sends resize events that change nothing
+// - the visual viewport reports them freely - and each one used to re-lay the whole page
+// and repaint it top to bottom, behind whatever the finger was doing at the time.
+let laidFor = '';
+
 function layout() {
   const { w: vw, h: vh } = viewSize();
+  const key = vw + 'x' + vh + (underBar() ? 'u' : '');
+  if (key === laidFor) return;
+  laidFor = key;
   // The page is as tall as the glass, not as the viewport iOS reports (see #stage).
   document.documentElement.style.height = vh + 'px';
   document.body.style.height = vh + 'px';
@@ -691,6 +699,13 @@ const SCREEN_TOP = { home: [255, 0, 0], calc: [39, 14, 14], calendar: [192, 195,
 const SCRIM = [39, 14, 14], SCRIM_A = 0.22;
 const ASK_SCRIM_A = 0.55;          // #ask-scrim, the same ink
 
+// Below a solid status bar, iOS colours that bar from the page - but only some while
+// after the page changes colour, so a bar that followed the screen was always a step
+// behind it, flashing the last screen's colour over every new one. So there it does not
+// follow: the bar, and the band under it, are the one ink throughout, like any app's.
+const BAR = [39, 14, 14];
+const solidBar = () => !framed && topTrim() > 0;
+
 /**
  * The colour the system takes for itself from the page. What shows past the page when
  * iOS moves it - the keyboard for the maximum shifts it down for a moment as it comes
@@ -704,6 +719,7 @@ const ASK_SCRIM_A = 0.55;          // #ask-scrim, the same ink
 function paintRoot() {
   let rgb;
   if (framed) rgb = FRAME_PAGE;
+  else if (solidBar()) rgb = BAR;
   else {
     const top = SCREEN_TOP[ui.screen] || SCREEN_TOP.home;
     const dim = (c, a) => c.map((v, i) => Math.round(v * (1 - a) + SCRIM[i] * a));
@@ -2810,7 +2826,7 @@ function paintDrag() {
   // it - the one being swiped to once it is past halfway - rather than waiting for the
   // swipe to land, which left the top the last screen's colour for the whole of it.
   const over = drag.to && Math.abs(x) >= SWIPE_W / 2 ? drag.to : drag.from;
-  if (!framed) edgeTint('rgb(' + (SCREEN_TOP[over] || SCREEN_TOP.home).join(',') + ')');
+  if (!framed && !solidBar()) edgeTint('rgb(' + (SCREEN_TOP[over] || SCREEN_TOP.home).join(',') + ')');
   if (!drag.to) { from.style.transform = shift(x); return; }
   const to = $('screen-' + drag.to);
   if (onTop(drag.to)) {
