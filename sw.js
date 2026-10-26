@@ -1,5 +1,12 @@
 /* Offline shell for intake. The app holds no remote data, so every asset it needs is
-   precached and served cache-first; a background revalidate picks up new deploys. */
+   precached, and served from the network whenever the network answers in time - the
+   copy kept here is for when it does not. */
+
+/* v3 — v2 served the cache first and only fetched the new version in the background,
+   for next time. So the first launch after any deploy was always the old app, and a
+   page added to the Home Screen straight after a deploy was added as the old page -
+   with the old status-bar setting baked into the icon. Now the network goes first, and
+   the cache is the fallback: offline, or slower than NET_WAIT. */
 
 /* v2 — v1 served navigations straight from the cache, and the host redirects
    /index.html to /, so what it had cached was a *redirected* response. WebKit refuses
@@ -9,7 +16,11 @@
    the redirect flag, and navigations are answered from one fixed key instead of
    whatever path the browser happened to ask for. */
 
-const VERSION = 'intake-v2';
+const VERSION = 'intake-v3';
+
+// How long the network gets before the copy kept here is used instead. The fetch carries
+// on regardless, so a slow connection still leaves the newer copy for the next launch.
+const NET_WAIT = 2500;
 
 // The page itself, under the one key every navigation is answered from. './' is what
 // the host serves without a redirect; './index.html' is the same bytes one hop away.
@@ -67,25 +78,26 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fire-and-forget: the cached copy has already gone out, this is only so the next
-// launch has the newer one.
-function revalidate(cache, key) {
-  fetch(key, { cache: 'reload' })
-    .then(res => store(cache, key, res))
-    .catch(() => {});
-}
-
 async function serve(key, req) {
   const cache = await caches.open(VERSION);
+  // Always asked of the network, with the browser's own cache only allowed to answer once
+  // the server has said nothing changed.
+  const net = fetch(req || key, { cache: 'no-cache' }).then(async res => {
+    if (res && res.ok) await store(cache, key, res.clone());
+    return res;
+  });
+  net.catch(() => {});          // a failure is answered below; it is not an error to report
+  let timer;
+  const late = new Promise(resolve => { timer = setTimeout(resolve, NET_WAIT, null); });
+  try {
+    const res = await Promise.race([net, late]);
+    clearTimeout(timer);
+    if (res && res.ok) return plain(res);
+  } catch (e) { /* offline: fall through to the copy */ }
   const hit = await cache.match(key);
-  if (hit) {
-    revalidate(cache, key);
-    return plain(hit);
-  }
-  const res = await fetch(req || key);
-  const copy = res.clone();
-  await store(cache, key, res);
-  return plain(copy);
+  if (hit) return plain(hit);
+  // Nothing kept and nothing yet: wait for the network after all.
+  return plain(await net);
 }
 
 self.addEventListener('fetch', event => {
