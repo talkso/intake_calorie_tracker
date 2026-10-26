@@ -598,6 +598,27 @@ const standalone = navigator.standalone === true ||
 // carries on past it instead of being cut there. A swipe crosses the whole of it.
 let bleedX = 0, bleedY = 0;
 
+// ── under the status bar, or below it ───────────────────────────────────────
+// The app used to ask iOS to draw it behind a see-through status bar. From iOS 26 the
+// system lays a live blur over whatever is under that bar, which smeared the header and
+// cost a frame-by-frame redraw over everything that moved beneath it. It now asks for a
+// solid bar (apple-mobile-web-app-status-bar-style) and starts below it. But iOS only
+// reads that when the app is added to the Home Screen, so an icon added before still
+// draws under the bar - and so how the page is laid out goes by which of the two is
+// actually happening, read off how far the safe area reaches down, not by assumption.
+const safeProbe = document.createElement('div');
+safeProbe.setAttribute('aria-hidden', 'true');
+safeProbe.style.cssText = 'position:absolute;left:0;top:0;width:0;' +
+  'height:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none';
+document.body.appendChild(safeProbe);
+const underBar = () => safeProbe.offsetHeight > 0;
+
+// The top of the design is left empty for the clock and the island to sit over. Below a
+// solid bar there is nothing to sit over it, so most of it is left off the top: the
+// header sits just under the bar, and the rest of the canvas gets the room.
+const TOP_TRIM = 44;
+const topTrim = () => (standalone && !framed && !underBar() ? TOP_TRIM : 0);
+
 function viewSize() {
   const vv = window.visualViewport;
   const w = Math.round((vv && vv.width) || window.innerWidth);
@@ -607,8 +628,9 @@ function viewSize() {
   // Dynamic Island phone, which shrank the whole canvas to 91% and letterboxed every
   // screen. Installed, the page *is* the screen, so take the screen's height, but only
   // when its width agrees: an iPad in split view is narrower than its screen, and the
-  // measured size is the right one there.
-  if (standalone && window.screen) {
+  // measured size is the right one there. Below a solid bar, the reported height is the
+  // true one, and taking the screen's would push the bottom of the app off the glass.
+  if (standalone && underBar() && window.screen) {
     const short = Math.min(screen.width, screen.height);
     const long = Math.max(screen.width, screen.height);
     const sw = h >= w ? short : long;
@@ -638,16 +660,18 @@ function layout() {
     const room = Math.max(24, Math.round(vh * 0.05));
     scale = Math.min(1, (vw - 2 * room) / (402 + 2 * FRAME_BEZEL),
                         (vh - 2 * room) / (874 + 2 * FRAME_BEZEL));
-  } else {
-    scale = Math.min(vw / 402, vh / 874);
   }
+  // What has to fit is the canvas less whatever is left off its top (see TOP_TRIM).
+  const trim = topTrim();
+  if (!framed) scale = Math.min(vw / 402, vh / (874 - trim));
   const ox = (vw - 402 * scale) / 2;
-  offsetY = (vh - 874 * scale) / 2;
+  const gapY = (vh - (874 - trim) * scale) / 2;
+  offsetY = gapY - trim * scale;
   stage.style.transform = 'translate(' + ox + 'px,' + offsetY + 'px) scale(' + scale + ')';
   // In the frame the glass is exactly the canvas, so there is nothing to reach into.
   // A fraction of a pixel over, so a scaled edge never leaves a hairline.
   bleedX = framed ? 0 : Math.ceil(ox / scale) + 1;
-  bleedY = framed ? 0 : Math.ceil(offsetY / scale) + 1;
+  bleedY = framed ? 0 : Math.ceil(gapY / scale) + 1;
   SWIPE_W = 402 + 2 * bleedX;
   stage.style.setProperty('--bx', bleedX + 'px');
   stage.style.setProperty('--by', bleedY + 'px');
