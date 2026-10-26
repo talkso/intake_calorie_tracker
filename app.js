@@ -615,8 +615,9 @@ const underBar = () => safeProbe.offsetHeight > 0;
 
 // The top of the design is left empty for the clock and the island to sit over. Below a
 // solid bar there is nothing to sit over it, so most of it is left off the top: the
-// header sits just under the bar, and the rest of the canvas gets the room.
-const TOP_TRIM = 44;
+// header sits just under the bar, and the rest of the canvas gets the room. Not all of
+// it - the header still has to clear the 14px band across the top edge (#edge-band).
+const TOP_TRIM = 38;
 const topTrim = () => (standalone && !framed && !underBar() ? TOP_TRIM : 0);
 
 function viewSize() {
@@ -688,6 +689,7 @@ function layout() {
 // The colour along the top edge of each screen, and the settings scrim laid over it.
 const SCREEN_TOP = { home: [255, 0, 0], calc: [39, 14, 14], calendar: [192, 195, 176], stats: [192, 195, 176] };
 const SCRIM = [39, 14, 14], SCRIM_A = 0.22;
+const ASK_SCRIM_A = 0.55;          // #ask-scrim, the same ink
 
 /**
  * The colour the system takes for itself from the page. What shows past the page when
@@ -704,14 +706,26 @@ function paintRoot() {
   if (framed) rgb = FRAME_PAGE;
   else {
     const top = SCREEN_TOP[ui.screen] || SCREEN_TOP.home;
-    rgb = ui.settings ? top.map((v, i) => Math.round(v * (1 - SCRIM_A) + SCRIM[i] * SCRIM_A)) : top;
+    const dim = (c, a) => c.map((v, i) => Math.round(v * (1 - a) + SCRIM[i] * a));
+    rgb = ui.settings ? dim(top, SCRIM_A) : top;
+    // The question asked over the sheet puts the screen out further still.
+    if (askWhich) rgb = dim(rgb, ASK_SCRIM_A);
   }
   const c = 'rgb(' + rgb.join(',') + ')';
   document.documentElement.style.backgroundColor = c;
   document.body.style.backgroundColor = c;
+  edgeTint(c);
   // Still set for the browsers that do read it to tint their own toolbars.
   const tint = document.querySelector('meta[name="theme-color"]');
   if (tint) tint.content = c;
+}
+
+/** The top-edge band's colour (see #edge-band), written only when it changes. */
+let edgeNow = '';
+function edgeTint(c) {
+  if (c === edgeNow) return;
+  edgeNow = c;
+  $('edge-band').style.backgroundColor = c;
 }
 
 function paintBackdrop() {
@@ -2296,11 +2310,13 @@ function openAsk(which) {
   box.style.display = 'block';
   void box.offsetWidth;      // laid out shut first, so it comes up rather than appearing
   box.classList.add('open');
+  paintRoot();
 }
 
 function closeAsk() {
   if (!askWhich) return;
   askWhich = null;
+  paintRoot();
   const box = $('ask');
   box.classList.remove('open');
   clearTimeout(askTimer);
@@ -2790,6 +2806,11 @@ const shift = x => 'translate3d(' + x.toFixed(2) + 'px,0,0)';
 function paintDrag() {
   const x = drag.x;
   const from = $('screen-' + drag.from);
+  // The band at the top edge takes the colour of whichever screen is under the middle of
+  // it - the one being swiped to once it is past halfway - rather than waiting for the
+  // swipe to land, which left the top the last screen's colour for the whole of it.
+  const over = drag.to && Math.abs(x) >= SWIPE_W / 2 ? drag.to : drag.from;
+  if (!framed) edgeTint('rgb(' + (SCREEN_TOP[over] || SCREEN_TOP.home).join(',') + ')');
   if (!drag.to) { from.style.transform = shift(x); return; }
   const to = $('screen-' + drag.to);
   if (onTop(drag.to)) {
