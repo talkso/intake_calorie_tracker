@@ -7,7 +7,7 @@
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="intake">
 <meta name="theme-color" content="#FF0000">
 
@@ -20,12 +20,6 @@
 <body>
 
 <div id="backdrop"></div>
-
-<!-- Across the top edge in the installed iPhone app only. iOS 26 lays a blur over the top
-     of an installed web app, and skips it where a solid band at least 10px tall spans the
-     top edge, taking the band's colour instead. Painted the colour of whatever screen is
-     on show (see paintRoot), so what shows is the screen and not a blur. -->
-<div id="edge-band" aria-hidden="true"></div>
 
 <!-- On a wide screen the app is shown as the phone it was drawn for: this is the body
      of that phone, behind the canvas. Hidden everywhere else. -->

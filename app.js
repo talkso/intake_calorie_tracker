@@ -598,28 +598,6 @@ const standalone = navigator.standalone === true ||
 // carries on past it instead of being cut there. A swipe crosses the whole of it.
 let bleedX = 0, bleedY = 0;
 
-// ── under the status bar, or below it ───────────────────────────────────────
-// The app used to ask iOS to draw it behind a see-through status bar. From iOS 26 the
-// system lays a live blur over whatever is under that bar, which smeared the header and
-// cost a frame-by-frame redraw over everything that moved beneath it. It now asks for a
-// solid bar (apple-mobile-web-app-status-bar-style) and starts below it. But iOS only
-// reads that when the app is added to the Home Screen, so an icon added before still
-// draws under the bar - and so how the page is laid out goes by which of the two is
-// actually happening, read off how far the safe area reaches down, not by assumption.
-const safeProbe = document.createElement('div');
-safeProbe.setAttribute('aria-hidden', 'true');
-safeProbe.style.cssText = 'position:absolute;left:0;top:0;width:0;' +
-  'height:env(safe-area-inset-top,0px);visibility:hidden;pointer-events:none';
-document.body.appendChild(safeProbe);
-const underBar = () => safeProbe.offsetHeight > 0;
-
-// The top of the design is left empty for the clock and the island to sit over. Below a
-// solid bar there is nothing to sit over it, so most of it is left off the top: the
-// header sits just under the bar, and the rest of the canvas gets the room. Not all of
-// it - the header still has to clear the 14px band across the top edge (#edge-band).
-const TOP_TRIM = 38;
-const topTrim = () => (standalone && !framed && !underBar() ? TOP_TRIM : 0);
-
 function viewSize() {
   const vv = window.visualViewport;
   const w = Math.round((vv && vv.width) || window.innerWidth);
@@ -629,9 +607,8 @@ function viewSize() {
   // Dynamic Island phone, which shrank the whole canvas to 91% and letterboxed every
   // screen. Installed, the page *is* the screen, so take the screen's height, but only
   // when its width agrees: an iPad in split view is narrower than its screen, and the
-  // measured size is the right one there. Below a solid bar, the reported height is the
-  // true one, and taking the screen's would push the bottom of the app off the glass.
-  if (standalone && underBar() && window.screen) {
+  // measured size is the right one there.
+  if (standalone && window.screen) {
     const short = Math.min(screen.width, screen.height);
     const long = Math.max(screen.width, screen.height);
     const sw = h >= w ? short : long;
@@ -648,39 +625,32 @@ const FRAME_BEZEL = 13;        // canvas px, matching #frame's size in the style
 const FRAME_PAGE = [243, 242, 236];   // the off-white the phone sits on
 let framed = false;
 
-// What the last layout was worked out from. iOS sends resize events that change nothing
-// - the visual viewport reports them freely - and each one used to re-lay the whole page
-// and repaint it top to bottom, behind whatever the finger was doing at the time.
-let laidFor = '';
-
 function layout() {
   const { w: vw, h: vh } = viewSize();
-  const key = vw + 'x' + vh + (underBar() ? 'u' : '');
-  if (key === laidFor) return;
-  laidFor = key;
   // The page is as tall as the glass, not as the viewport iOS reports (see #stage).
   document.documentElement.style.height = vh + 'px';
   document.body.style.height = vh + 'px';
   window.scrollTo(0, 0);
   framed = !standalone && vw >= FRAME_MIN_W;
   document.body.classList.toggle('framed', framed);
+  // Browsers that tint their own toolbar to the page's colour match the page it is on.
+  const tint = document.querySelector('meta[name="theme-color"]');
+  if (tint) tint.content = framed ? 'rgb(' + FRAME_PAGE.join(',') + ')' : '#FF0000';
   if (framed) {
     // Fitted with room around it, bezel and all, and never blown up past life size.
     const room = Math.max(24, Math.round(vh * 0.05));
     scale = Math.min(1, (vw - 2 * room) / (402 + 2 * FRAME_BEZEL),
                         (vh - 2 * room) / (874 + 2 * FRAME_BEZEL));
+  } else {
+    scale = Math.min(vw / 402, vh / 874);
   }
-  // What has to fit is the canvas less whatever is left off its top (see TOP_TRIM).
-  const trim = topTrim();
-  if (!framed) scale = Math.min(vw / 402, vh / (874 - trim));
   const ox = (vw - 402 * scale) / 2;
-  const gapY = (vh - (874 - trim) * scale) / 2;
-  offsetY = gapY - trim * scale;
+  offsetY = (vh - 874 * scale) / 2;
   stage.style.transform = 'translate(' + ox + 'px,' + offsetY + 'px) scale(' + scale + ')';
   // In the frame the glass is exactly the canvas, so there is nothing to reach into.
   // A fraction of a pixel over, so a scaled edge never leaves a hairline.
   bleedX = framed ? 0 : Math.ceil(ox / scale) + 1;
-  bleedY = framed ? 0 : Math.ceil(gapY / scale) + 1;
+  bleedY = framed ? 0 : Math.ceil(offsetY / scale) + 1;
   SWIPE_W = 402 + 2 * bleedX;
   stage.style.setProperty('--bx', bleedX + 'px');
   stage.style.setProperty('--by', bleedY + 'px');
@@ -697,51 +667,21 @@ function layout() {
 // The colour along the top edge of each screen, and the settings scrim laid over it.
 const SCREEN_TOP = { home: [255, 0, 0], calc: [39, 14, 14], calendar: [192, 195, 176], stats: [192, 195, 176] };
 const SCRIM = [39, 14, 14], SCRIM_A = 0.22;
-const ASK_SCRIM_A = 0.55;          // #ask-scrim, the same ink
-
-// Below a solid status bar, iOS colours that bar from the page - but only some while
-// after the page changes colour, so a bar that followed the screen was always a step
-// behind it, flashing the last screen's colour over every new one. So there it does not
-// follow: the bar, and the band under it, are the one ink throughout, like any app's.
-const BAR = [39, 14, 14];
-const solidBar = () => !framed && topTrim() > 0;
 
 /**
- * The colour the system takes for itself from the page. What shows past the page when
- * iOS moves it - the keyboard for the maximum shifts it down for a moment as it comes
- * up - is the root's own colour. And iOS 26 lays a blurred, tinted strip under the
- * status bar of an installed web app, tinted from the body's background (theme-color is
- * no longer read): left red, that strip was a red smear over every screen, the sage
- * ones included. All three are kept to whatever is along the top of the screen, scrim
- * included, so what the system draws there reads as more of the same. The blur itself
- * is the system's and cannot be turned off from a page; only its colour can be chosen.
+ * What shows past the page when iOS moves it — the keyboard for the maximum shifts it
+ * down for a moment as it comes up — is the root's own colour. It is kept to whatever
+ * is along the top of the screen, scrim included, so a strip uncovered there reads as
+ * more of the same rather than as a band of the wrong red.
  */
 function paintRoot() {
-  let rgb;
-  if (framed) rgb = FRAME_PAGE;
-  else if (solidBar()) rgb = BAR;
-  else {
-    const top = SCREEN_TOP[ui.screen] || SCREEN_TOP.home;
-    const dim = (c, a) => c.map((v, i) => Math.round(v * (1 - a) + SCRIM[i] * a));
-    rgb = ui.settings ? dim(top, SCRIM_A) : top;
-    // The question asked over the sheet puts the screen out further still.
-    if (askWhich) rgb = dim(rgb, ASK_SCRIM_A);
+  if (framed) {
+    document.documentElement.style.backgroundColor = 'rgb(' + FRAME_PAGE.join(',') + ')';
+    return;
   }
-  const c = 'rgb(' + rgb.join(',') + ')';
-  document.documentElement.style.backgroundColor = c;
-  document.body.style.backgroundColor = c;
-  edgeTint(c);
-  // Still set for the browsers that do read it to tint their own toolbars.
-  const tint = document.querySelector('meta[name="theme-color"]');
-  if (tint) tint.content = c;
-}
-
-/** The top-edge band's colour (see #edge-band), written only when it changes. */
-let edgeNow = '';
-function edgeTint(c) {
-  if (c === edgeNow) return;
-  edgeNow = c;
-  $('edge-band').style.backgroundColor = c;
+  const top = SCREEN_TOP[ui.screen] || SCREEN_TOP.home;
+  const c = ui.settings ? top.map((v, i) => Math.round(v * (1 - SCRIM_A) + SCRIM[i] * SCRIM_A)) : top;
+  document.documentElement.style.backgroundColor = 'rgb(' + c.join(',') + ')';
 }
 
 function paintBackdrop() {
@@ -2326,13 +2266,11 @@ function openAsk(which) {
   box.style.display = 'block';
   void box.offsetWidth;      // laid out shut first, so it comes up rather than appearing
   box.classList.add('open');
-  paintRoot();
 }
 
 function closeAsk() {
   if (!askWhich) return;
   askWhich = null;
-  paintRoot();
   const box = $('ask');
   box.classList.remove('open');
   clearTimeout(askTimer);
@@ -2822,11 +2760,6 @@ const shift = x => 'translate3d(' + x.toFixed(2) + 'px,0,0)';
 function paintDrag() {
   const x = drag.x;
   const from = $('screen-' + drag.from);
-  // The band at the top edge takes the colour of whichever screen is under the middle of
-  // it - the one being swiped to once it is past halfway - rather than waiting for the
-  // swipe to land, which left the top the last screen's colour for the whole of it.
-  const over = drag.to && Math.abs(x) >= SWIPE_W / 2 ? drag.to : drag.from;
-  if (!framed && !solidBar()) edgeTint('rgb(' + (SCREEN_TOP[over] || SCREEN_TOP.home).join(',') + ')');
   if (!drag.to) { from.style.transform = shift(x); return; }
   const to = $('screen-' + drag.to);
   if (onTop(drag.to)) {
