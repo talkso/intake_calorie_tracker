@@ -633,9 +633,6 @@ function layout() {
   window.scrollTo(0, 0);
   framed = !standalone && vw >= FRAME_MIN_W;
   document.body.classList.toggle('framed', framed);
-  // Browsers that tint their own toolbar to the page's colour match the page it is on.
-  const tint = document.querySelector('meta[name="theme-color"]');
-  if (tint) tint.content = framed ? 'rgb(' + FRAME_PAGE.join(',') + ')' : '#FF0000';
   if (framed) {
     // Fitted with room around it, bezel and all, and never blown up past life size.
     const room = Math.max(24, Math.round(vh * 0.05));
@@ -669,19 +666,28 @@ const SCREEN_TOP = { home: [255, 0, 0], calc: [39, 14, 14], calendar: [192, 195,
 const SCRIM = [39, 14, 14], SCRIM_A = 0.22;
 
 /**
- * What shows past the page when iOS moves it — the keyboard for the maximum shifts it
- * down for a moment as it comes up — is the root's own colour. It is kept to whatever
- * is along the top of the screen, scrim included, so a strip uncovered there reads as
- * more of the same rather than as a band of the wrong red.
+ * The colour the system takes for itself from the page. What shows past the page when
+ * iOS moves it - the keyboard for the maximum shifts it down for a moment as it comes
+ * up - is the root's own colour. And iOS 26 lays a blurred, tinted strip under the
+ * status bar of an installed web app, tinted from the body's background (theme-color is
+ * no longer read): left red, that strip was a red smear over every screen, the sage
+ * ones included. All three are kept to whatever is along the top of the screen, scrim
+ * included, so what the system draws there reads as more of the same. The blur itself
+ * is the system's and cannot be turned off from a page; only its colour can be chosen.
  */
 function paintRoot() {
-  if (framed) {
-    document.documentElement.style.backgroundColor = 'rgb(' + FRAME_PAGE.join(',') + ')';
-    return;
+  let rgb;
+  if (framed) rgb = FRAME_PAGE;
+  else {
+    const top = SCREEN_TOP[ui.screen] || SCREEN_TOP.home;
+    rgb = ui.settings ? top.map((v, i) => Math.round(v * (1 - SCRIM_A) + SCRIM[i] * SCRIM_A)) : top;
   }
-  const top = SCREEN_TOP[ui.screen] || SCREEN_TOP.home;
-  const c = ui.settings ? top.map((v, i) => Math.round(v * (1 - SCRIM_A) + SCRIM[i] * SCRIM_A)) : top;
-  document.documentElement.style.backgroundColor = 'rgb(' + c.join(',') + ')';
+  const c = 'rgb(' + rgb.join(',') + ')';
+  document.documentElement.style.backgroundColor = c;
+  document.body.style.backgroundColor = c;
+  // Still set for the browsers that do read it to tint their own toolbars.
+  const tint = document.querySelector('meta[name="theme-color"]');
+  if (tint) tint.content = c;
 }
 
 function paintBackdrop() {
