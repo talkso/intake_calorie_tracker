@@ -502,3 +502,18 @@ input.set-val:focus { color: #FF0000; }
    changing over the top of them sent it back to paint everything beneath. Each heavy
    piece is its own layer instead: drawn once, then only moved or masked as a picture. */
 .layer { will-change: transform; }
+
+/* ── glow room ──
+   Only in the installed app on an iPhone (html.glow-room, set in app.js): iOS 26 lays a
+   blur over the top of it, strongest under the status bar and gone about 40pt below.
+   Each screen's header row comes 20px down out of the worst of it, the same on every
+   screen so nothing jumps in a swipe, and what sits under each header comes down only as
+   far as it has to. Stats' chart gives up 16px of its top to make room for the figure
+   above it (CHART_TOP and friends in app.js follow suit). */
+.glow-room .hdr { top: 78px !important; }
+.glow-room #home-left { top: 120px !important; }
+.glow-room #calc-pct { top: 130px !important; }
+.glow-room #stats-hero { top: 118px !important; }
+.glow-room #stats-rule-1 { top: 214px !important; }
+.glow-room #stats-rule-2 { top: 250px !important; }
+.glow-room #stats-chart { top: 252px !important; height: 232px !important; }

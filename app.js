@@ -26,9 +26,17 @@ const GOAL_AT = 0.86;        // goal rule pinned at 86% of chart height in every
 // The chart's own box, and the two grey rules the design runs above it - the only
 // things a goal rule can ever end up level with, since it is the one thing on the
 // screen that leaves the chart to reach them.
-const CHART_TOP = 236;
-const CHART_H = 248;
-const RULE_YS = [198, 234];
+// In the installed app on an iPhone, iOS 26 lays a blur along the top edge that a page
+// cannot turn off. There the tops of the screens sit a little further down, out of the
+// worst of it (see "glow room" in the stylesheet) - stats' chart among them, 16px lower
+// and shorter, its bottom where it was. Everywhere else the design is as drawn.
+const GLOW_ROOM = (navigator.standalone === true ||
+  !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)) &&
+  !!(window.CSS && CSS.supports('-webkit-touch-callout', 'none'));
+if (GLOW_ROOM) document.documentElement.classList.add('glow-room');
+const CHART_TOP = GLOW_ROOM ? 252 : 236;
+const CHART_H = GLOW_ROOM ? 232 : 248;
+const RULE_YS = GLOW_ROOM ? [214, 250] : [198, 234];
 const RULE_SEP = 8;          // clear ground left between the red and the grey it displaces
 const RISER_GAP = 3;         // and between a step's riser and the two lines it steps between
 

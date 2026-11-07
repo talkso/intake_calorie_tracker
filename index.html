@@ -33,13 +33,13 @@
 
 <!-- ═══════════════════════════ HOME ═══════════════════════════ -->
 <section class="screen" id="screen-home" style="position: relative; height: 874px; overflow: hidden; background-color: #FF0000">
-  <div style="position: absolute; left: 0; right: 0; top: 58px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; z-index: 9">
+  <div class="hdr" style="position: absolute; left: 0; right: 0; top: 58px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; z-index: 9">
     <div id="home-stats-btn" class="nav-pill" style="background: #270E0E; color: #FF0000; font: 600 11px/1 'IBM Plex Mono',monospace; letter-spacing: .16em; padding: 9px 13px">STATS</div>
     <div style="position: absolute; left: 0; right: 0; text-align: center; color: #270E0E; font: 600 17px/1 'IBM Plex Mono',monospace; letter-spacing: .14em; pointer-events: none">intake</div>
     <div id="home-settings-btn" class="dot-btn" role="button" tabindex="0" aria-label="Settings" style="width:29px;height:29px;border-radius:50%;border:2.5px solid #270E0E;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width: 8px; height: 8px; border-radius: 50%; background: #270E0E"></div></div>
   </div>
 
-  <div style="position: absolute; left: 18px; top: 104px; z-index: 9; display: flex; flex-direction: column; gap: 2px; color: #270E0E">
+  <div id="home-left" style="position: absolute; left: 18px; top: 104px; z-index: 9; display: flex; flex-direction: column; gap: 2px; color: #270E0E">
     <div id="home-left-cap" style="font: 700 15px/1 Archivo,sans-serif; letter-spacing: .02em">Left:</div>
     <div style="display: flex; align-items: baseline; gap: 4px"><div id="home-left-val" style="font: 900 52px/.85 Archivo,sans-serif; letter-spacing: -.02em">425</div><div style="font: 900 34px/.85 Archivo,sans-serif; letter-spacing: -.01em">Cal</div></div>
   </div>
@@ -86,7 +86,7 @@
 <!-- ═══════════════════════════ CALENDAR ═══════════════════════════ -->
 <section class="screen" id="screen-calendar" style="position:relative;height:874px;overflow:hidden;background:#C0C3B0;font-family:Archivo,sans-serif">
 
-  <div style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
+  <div class="hdr" style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
     <button type="button" id="cal-back-btn" class="btn-close" style="width:29px;height:29px;border-radius:50%;border:0;background:#FF0000;color:#270E0E;font:900 12px/1 Archivo,sans-serif;-webkit-text-stroke:0.9px currentColor;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;flex:none">✕</button>
     <div style="position:absolute;left:0;right:0;text-align:center;color:#270E0E;font:600 17px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;pointer-events:none">log</div>
     <div id="cal-settings-btn" class="dot-btn" role="button" tabindex="0" aria-label="Settings" style="width:29px;height:29px;border-radius:50%;border:2.5px solid #FF0000;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#FF0000"></div></div>
@@ -124,7 +124,7 @@
 <!-- ═══════════════════════ CALCULATOR ═══════════════════════ -->
 <section class="screen" id="screen-calc" style="position:relative;height:874px;overflow:hidden;background:#270E0E;font-family:Archivo,sans-serif">
 
-  <div style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
+  <div class="hdr" style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
     <button type="button" id="calc-close" class="btn-close" style="width:29px;height:29px;border-radius:50%;border:0;background:#FF0000;color:#270E0E;font:900 12px/1 Archivo,sans-serif;-webkit-text-stroke:0.9px currentColor;display:flex;align-items:center;justify-content:center;padding:0;cursor:pointer;flex:none">✕</button>
     <div id="calc-title" style="font:600 14px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;color:#270E0E">CALC</div><div id="calc-settings-btn" class="dot-btn" role="button" tabindex="0" aria-label="Settings" style="width:29px;height:29px;border-radius:50%;background:#FF0000;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#270E0E"></div></div>
   </div>
@@ -177,13 +177,13 @@
 <!-- ═══════════════════════════ STATS ═══════════════════════════ -->
 <section class="screen" id="screen-stats" style="position:relative;height:874px;overflow:hidden;background:#C0C3B0;font-family:Archivo,sans-serif">
 
-  <div style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
+  <div class="hdr" style="position:absolute;left:0;right:0;top:58px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;z-index:9">
     <div id="stats-home-btn" class="nav-pill" style="background:#FF0000;color:#270E0E;font:600 11px/1 'IBM Plex Mono',monospace;letter-spacing:.16em;padding:9px 13px">HOME</div>
     <div style="position:absolute;left:0;right:0;text-align:center;color:#270E0E;font:600 17px/1 'IBM Plex Mono',monospace;letter-spacing:.14em;pointer-events:none">stats</div>
     <div id="stats-settings-btn" class="dot-btn" role="button" tabindex="0" aria-label="Settings" style="width:29px;height:29px;border-radius:50%;border:2.5px solid #FF0000;box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width:8px;height:8px;border-radius:50%;background:#FF0000"></div></div>
   </div>
 
-  <div style="position:absolute;left:24px;right:24px;top:104px;z-index:7;color:#270E0E">
+  <div id="stats-hero" style="position:absolute;left:24px;right:24px;top:104px;z-index:7;color:#270E0E">
     <div id="stats-hero-caption" style="font: 600 10px/1 'IBM Plex Mono',monospace; letter-spacing: .2em; color: #270E0E; white-space: nowrap">AVERAGE PER 7 DAYS</div>
     <div style="display:flex;align-items:baseline;gap:5px;margin-top:13px">
       <div id="stats-hero-value" style="font:900 62px/.82 Archivo,sans-serif;letter-spacing:-.04em">0</div>
