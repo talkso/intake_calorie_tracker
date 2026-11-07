@@ -793,11 +793,11 @@ function layout() {
  * iOS moves it - the keyboard for the maximum shifts it down for a moment as it comes
  * up - is the root's own colour. And iOS 26 lays a blurred, tinted strip under the
  * status bar of an installed web app, tinted from the body's background (theme-color is
- * no longer read). It is kept to the app's ink on every screen: a strip that followed
+ * no longer read). It is kept to the app's red on every screen: a strip that followed
  * the screen beneath could only ever follow it late, and mid-swipe it was always wrong
  * for one side.
  */
-const ROOT_INK = [39, 14, 14];
+const ROOT_INK = [255, 0, 0];
 function paintRoot() {
   const c = 'rgb(' + (framed ? FRAME_PAGE : ROOT_INK).join(',') + ')';
   document.documentElement.style.backgroundColor = c;
