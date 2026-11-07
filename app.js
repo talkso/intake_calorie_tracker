@@ -694,13 +694,11 @@ const standalone = navigator.standalone === true ||
 let bleedX = 0, bleedY = 0;
 
 // ── under the status bar, or below it ───────────────────────────────────────
-// The app used to ask iOS to draw it behind a see-through status bar. From iOS 26 the
-// system lays a live blur over whatever is under that bar, which smeared the header and
-// cost a frame-by-frame redraw over everything that moved beneath it. It now asks for a
-// solid bar (apple-mobile-web-app-status-bar-style) and starts below it. But iOS only
-// reads that when the app is added to the Home Screen, so an icon added before still
-// draws under the bar - and so how the page is laid out goes by which of the two is
-// actually happening, read off how far the safe area reaches down, not by assumption.
+// The app asks iOS to draw it behind a see-through status bar. For a while it asked for
+// a solid one instead, to get out from under iOS 26's blur, and iOS only reads that when
+// the app is added to the Home Screen - so an icon added then still starts below the bar.
+// How the page is laid out goes by which of the two is actually happening, read off how
+// far the safe area reaches down, not by assumption.
 const safeProbe = document.createElement('div');
 safeProbe.setAttribute('aria-hidden', 'true');
 safeProbe.style.cssText = 'position:absolute;left:0;top:0;width:0;' +
@@ -710,8 +708,8 @@ const underBar = () => safeProbe.offsetHeight > 0;
 
 // The top of the design is left empty for the clock and the island to sit over. Below a
 // solid bar there is nothing to sit over it, so most of it is left off the top: the
-// header sits just under the bar, and the rest of the canvas gets the room. Not all of
-// it - the header still has to clear the 14px band across the top edge (#edge-band).
+// header sits just under the bar, and the rest of the canvas gets the room. Only for an
+// icon added while the app asked for a solid bar; the app now asks for a see-through one.
 const TOP_TRIM = 38;
 const topTrim = () => (standalone && !framed && !underBar() ? TOP_TRIM : 0);
 
@@ -790,46 +788,23 @@ function layout() {
   paintBackdrop();
 }
 
-// The colour along the top edge of each screen, and the settings scrim laid over it.
-const SCREEN_TOP = { home: [255, 0, 0], calc: [39, 14, 14], calendar: [192, 195, 176], stats: [192, 195, 176] };
-const SCRIM = [39, 14, 14], SCRIM_A = 0.22;
-const ASK_SCRIM_A = 0.55;          // #ask-scrim, the same ink
-
 /**
  * The colour the system takes for itself from the page. What shows past the page when
  * iOS moves it - the keyboard for the maximum shifts it down for a moment as it comes
  * up - is the root's own colour. And iOS 26 lays a blurred, tinted strip under the
  * status bar of an installed web app, tinted from the body's background (theme-color is
- * no longer read): left red, that strip was a red smear over every screen, the sage
- * ones included. All three are kept to whatever is along the top of the screen, scrim
- * included, so what the system draws there reads as more of the same. The blur itself
- * is the system's and cannot be turned off from a page; only its colour can be chosen.
+ * no longer read). It is kept to the app's ink on every screen: a strip that followed
+ * the screen beneath could only ever follow it late, and mid-swipe it was always wrong
+ * for one side.
  */
+const ROOT_INK = [39, 14, 14];
 function paintRoot() {
-  let rgb;
-  if (framed) rgb = FRAME_PAGE;
-  else {
-    const top = SCREEN_TOP[ui.screen] || SCREEN_TOP.home;
-    const dim = (c, a) => c.map((v, i) => Math.round(v * (1 - a) + SCRIM[i] * a));
-    rgb = ui.settings ? dim(top, SCRIM_A) : top;
-    // The question asked over the sheet puts the screen out further still.
-    if (askWhich) rgb = dim(rgb, ASK_SCRIM_A);
-  }
-  const c = 'rgb(' + rgb.join(',') + ')';
+  const c = 'rgb(' + (framed ? FRAME_PAGE : ROOT_INK).join(',') + ')';
   document.documentElement.style.backgroundColor = c;
   document.body.style.backgroundColor = c;
-  edgeTint(c);
   // Still set for the browsers that do read it to tint their own toolbars.
   const tint = document.querySelector('meta[name="theme-color"]');
   if (tint) tint.content = c;
-}
-
-/** The top-edge band's colour (see #edge-band), written only when it changes. */
-let edgeNow = '';
-function edgeTint(c) {
-  if (c === edgeNow) return;
-  edgeNow = c;
-  $('edge-band').style.backgroundColor = c;
 }
 
 function paintBackdrop() {
@@ -2893,11 +2868,6 @@ const shift = x => 'translate3d(' + x.toFixed(2) + 'px,0,0)';
 function paintDrag() {
   const x = drag.x;
   const from = $('screen-' + drag.from);
-  // The band at the top edge takes the colour of whichever screen is under the middle of
-  // it - the one being swiped to once it is past halfway - rather than waiting for the
-  // swipe to land, which left the top the last screen's colour for the whole of it.
-  const over = drag.to && Math.abs(x) >= SWIPE_W / 2 ? drag.to : drag.from;
-  if (!framed) edgeTint('rgb(' + (SCREEN_TOP[over] || SCREEN_TOP.home).join(',') + ')');
   if (!drag.to) { from.style.transform = shift(x); return; }
   const to = $('screen-' + drag.to);
   if (onTop(drag.to)) {
