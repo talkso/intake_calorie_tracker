@@ -7,7 +7,9 @@
 
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- "default", not "black" or "black-translucent": the only one of the three under which the
+     band below has been seen to clear iOS's top-edge blur on a phone. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="intake">
 <meta name="theme-color" content="#FF0000">
 
@@ -20,6 +22,13 @@
 <body>
 
 <div id="backdrop"></div>
+
+<!-- Across the top edge in the installed iPhone app only. iOS 26 lays a blur over the top
+     of an installed web app, and skips it where a solid band at least 10px tall spans the
+     top edge, taking the band's colour instead. Below the status bar it is one red
+     throughout (see BAR); under an old icon's see-through bar it is painted the colour
+     of whatever screen is on show (see paintRoot). -->
+<div id="edge-band" aria-hidden="true"></div>
 
 <!-- On a wide screen the app is shown as the phone it was drawn for: this is the body
      of that phone, behind the canvas. Hidden everywhere else. -->

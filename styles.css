@@ -36,6 +36,31 @@ body {
   overflow: clip;
 }
 
+/* ── the iOS 26 edge blur ──
+   An installed web app gets a system blur laid over the top of the page, redrawn every
+   frame over whatever moves under it. There is no switch for it. WebKit leaves it off
+   where a fixed box spanning at least 90% of the width and more than 10px tall paints
+   one solid colour across the top edge, and uses that colour instead. So in the
+   installed app on iOS - and nowhere else - there is one, painted the colour of the
+   screen beneath it, on top of everything so nothing can come between it and the edge.
+   It never takes a tap. */
+#edge-band { display: none; }
+@media (display-mode: standalone) {
+  @supports (-webkit-touch-callout: none) {
+    #edge-band {
+      display: block;
+      position: fixed;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 14px;
+      z-index: 2147483647;
+      pointer-events: none;
+      background: #FF0000;
+    }
+  }
+}
+
 /* Fills the letterbox left by contain-scaling the 402x874 canvas onto a viewport of a
    different aspect ratio, so the edges read as a continuation of the screen. */
 #backdrop {
