@@ -520,3 +520,10 @@ input.set-val:focus { color: #FF0000; }
 }
 .cal-nav:active { color: #270E0E !important; }
 .cal-nav.off { color: rgba(39, 14, 14, .14); pointer-events: none; }
+
+/* ── layers ──
+   The dials are drawn from stacks of fine conic stripes cut into rings by masks, which
+   Safari draws slowly - and redrew all of on every frame the arc moved, because a mask
+   changing over the top of them sent it back to paint everything beneath. Each heavy
+   piece is its own layer instead: drawn once, then only moved or masked as a picture. */
+.layer { will-change: transform; }

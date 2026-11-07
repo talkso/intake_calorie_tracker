@@ -60,6 +60,9 @@ const HOME_SPAN = HOME_ARC_ANCHOR - (180 - HOME_EDGE) + 360;
 // edge lands on the centre x, rather than the cap straddling 6 o'clock.
 const CALC_ARC_ANCHOR = 180 - CAP_HALF;
 const CALC_RING_C = { x: 203.5, y: 356.5 };  // ring centre in screen coords on calculator
+// The centre of the calculator's wedge, in the ring box: the prototype's fill sat 31px
+// left and 15px up, overhanging the box on those two sides only.
+const CALC_WEDGE_C = { x: 284, y: 292 };
 const SNAP_MARGIN = 5;   // degrees of clearance around type on the band
 
 const SEG_MAP = {
@@ -521,14 +524,111 @@ function bandPoint(deg, radius) {
   return { x: RING_C + radius * Math.sin(r), y: RING_C - radius * Math.cos(r) };
 }
 
-function conicMask(from, sweep) {
-  return 'conic-gradient(from ' + from + 'deg,#000 0 ' + sweep +
-         'deg,rgba(0,0,0,0) ' + (sweep + 0.7) + 'deg 360deg)';
+// ── the dials, drawn ─────────────────────────────────────────────────────────
+// The prototype drew both dials in CSS: the tick rows as repeating conic stripes cut
+// into rings by radial masks, and the arc as a conic mask moved on every frame. Safari
+// draws masked gradients slowly, and the moving mask sent it back to redraw all of
+// them on every frame of every arc - ten frames a second on a phone. The same shapes
+// are drawn here instead: the ticks once, into bitmaps, and on each frame only a wedge
+// and two circles, which costs next to nothing.
+const DIAL = 599;                 // the ring box, as laid out
+const RING_IN = RING_C * 0.45;    // inner edge of the band
+// Each row as it was written: repeating-conic-gradient(from <from>deg, ink 0 <w>deg,
+// clear <w>deg <p>deg), cut to between <a>% and <b>% of the radius, its alpha running
+// from <a1> to <a2> across that.
+const TICK_ROWS = [
+  { from: 0,   w: .62, p: 4,   a: 46.5, b: 52,   a1: .28, a2: .5,  ink: 0 },
+  { from: 0,   w: .62, p: 8,   a: 52,   b: 58,   a1: .5,  a2: .78, ink: 0 },
+  { from: 0,   w: .62, p: 16,  a: 58,   b: 65,   a1: .78, a2: 1,   ink: 0 },
+  { from: 2,   w: .45, p: 3.5, a: 96.8, b: 98.4, a1: 1,   a2: 1,   ink: 1 },
+  { from: 2,   w: .45, p: 7,   a: 88.6, b: 95.2, a1: 1,   a2: 1,   ink: 1 },
+  { from: 2,   w: .45, p: 7,   a: 96.1, b: 96.8, a1: 1,   a2: 1,   ink: 1 },
+  { from: 5.5, w: .45, p: 14,  a: 95.7, b: 96.8, a1: 1,   a2: 1,   ink: 1 }
+];
+const TICKS_DIM = ['106,22,8', '56,10,2'];    // #6A1608, #380A02
+const TICKS_LIT = ['124,57,40', '72,33,15'];  // #7C3928, #48210F, where the arc has been
+
+/** CSS conic angle (0deg = up, clockwise) to canvas radians (0 = right, clockwise). */
+const canvasRad = deg => (deg - 90) * Math.PI / 180;
+
+function drawTicks(g, inks) {
+  for (const row of TICK_ROWS) {
+    const r0 = RING_C * row.a / 100, r1 = RING_C * row.b / 100;
+    const ink = inks[row.ink];
+    const grad = g.createRadialGradient(RING_C, RING_C, r0, RING_C, RING_C, r1);
+    grad.addColorStop(0, 'rgba(' + ink + ',' + row.a1 + ')');
+    grad.addColorStop(1, 'rgba(' + ink + ',' + row.a2 + ')');
+    g.fillStyle = grad;
+    g.beginPath();
+    for (let t = row.from; t < row.from + 360; t += row.p) {
+      const t0 = canvasRad(t), t1 = canvasRad(t + row.w);
+      g.moveTo(RING_C + r1 * Math.cos(t0), RING_C + r1 * Math.sin(t0));
+      g.arc(RING_C, RING_C, r1, t0, t1);
+      g.arc(RING_C, RING_C, r0, t1, t0, true);
+      g.closePath();
+    }
+    g.fill();
+  }
 }
 
-function capMask(pt) {
-  return 'radial-gradient(circle ' + CAP_R + 'px at ' + pt.x.toFixed(2) + 'px ' +
-         pt.y.toFixed(2) + 'px,#000 99%,rgba(0,0,0,0) 100%)';
+/**
+ * The arc's shape: the wedge from <lead> round through <sweep> degrees about (cx, cy),
+ * and a round cap at each end. All wound the same way, so they add together.
+ */
+function arcPath(g, cx, cy, lead, sweep, caps) {
+  g.beginPath();
+  if (sweep >= 360) g.rect(0, 0, DIAL, DIAL);
+  else {
+    g.moveTo(cx, cy);
+    g.arc(cx, cy, DIAL * 1.5, canvasRad(lead), canvasRad(lead + sweep));
+    g.closePath();
+  }
+  for (const pt of caps) {
+    g.moveTo(pt.x + CAP_R, pt.y);
+    g.arc(pt.x, pt.y, CAP_R, 0, 2 * Math.PI);
+  }
+}
+
+/** The band: its ground, and the arc over it in <fill>, or none. */
+function paintBand(g, ground, fill, cx, cy, lead, sweep, caps) {
+  g.clearRect(0, 0, DIAL, DIAL);
+  g.save();
+  g.beginPath();
+  g.arc(RING_C, RING_C, RING_C, 0, 2 * Math.PI);
+  g.moveTo(RING_C + RING_IN, RING_C);
+  g.arc(RING_C, RING_C, RING_IN, 0, 2 * Math.PI, true);
+  g.clip();
+  g.fillStyle = ground;
+  g.fillRect(0, 0, DIAL, DIAL);
+  if (fill) {
+    arcPath(g, cx, cy, lead, sweep, caps);
+    g.fillStyle = fill;
+    g.fill();
+  }
+  g.restore();
+}
+
+const dials = { k: 0, lit: null };
+const dialCtx = id => $(id).getContext('2d');
+
+/** Sized to the pixels the dials really cover, and drawn again whenever that changes. */
+function sizeDials() {
+  const k = scale * (window.devicePixelRatio || 1);
+  if (k === dials.k) return;
+  dials.k = k;
+  const px = Math.ceil(DIAL * k);
+  const fit = c => {
+    c.width = px;
+    c.height = px;
+    c.getContext('2d').setTransform(px / DIAL, 0, 0, px / DIAL, 0, 0);
+    return c;
+  };
+  for (const id of ['home-band', 'home-ticks', 'home-lit', 'calc-band']) fit($(id));
+  dials.lit = fit(document.createElement('canvas'));
+  drawTicks(dials.lit.getContext('2d'), TICKS_LIT);
+  drawTicks(dialCtx('home-ticks'), TICKS_DIM);
+  paintHomeArc(homeArc.at() || 0);
+  paintCalcArc(calcArc.at() || 0);
 }
 
 /** Box of an element in screen coordinates, walking up to the screen root. */
@@ -571,11 +671,6 @@ function coverIntervals() {
     }
     return { paint: t.paint, enter: enter - SNAP_MARGIN, exit: exit + SNAP_MARGIN };
   });
-}
-
-function placeCap(el, pt) {
-  el.style.left = (pt.x - CAP_R).toFixed(2) + 'px';
-  el.style.top = (pt.y - CAP_R).toFixed(2) + 'px';
 }
 
 // ── stage scaling ────────────────────────────────────────────────────────────
@@ -691,6 +786,7 @@ function layout() {
       'translate(' + (ox - b) + 'px,' + (offsetY - b) + 'px) scale(' + scale + ')';
   }
   stage.classList.add('ready');
+  sizeDials();
   paintBackdrop();
 }
 
@@ -698,14 +794,6 @@ function layout() {
 const SCREEN_TOP = { home: [255, 0, 0], calc: [39, 14, 14], calendar: [192, 195, 176], stats: [192, 195, 176] };
 const SCRIM = [39, 14, 14], SCRIM_A = 0.22;
 const ASK_SCRIM_A = 0.55;          // #ask-scrim, the same ink
-
-// Below a solid status bar, iOS colours that bar from the page - but only some while
-// after the page changes colour, so a bar that followed the screen was always a step
-// behind it, flashing the last screen's colour over every new one. So there it does not
-// follow: the bar, and the band under it, are the one red throughout. Red rather than
-// ink because under the "default" bar style iOS may draw the clock dark.
-const BAR = [255, 0, 0];
-const solidBar = () => !framed && topTrim() > 0;
 
 /**
  * The colour the system takes for itself from the page. What shows past the page when
@@ -720,7 +808,6 @@ const solidBar = () => !framed && topTrim() > 0;
 function paintRoot() {
   let rgb;
   if (framed) rgb = FRAME_PAGE;
-  else if (solidBar()) rgb = BAR;
   else {
     const top = SCREEN_TOP[ui.screen] || SCREEN_TOP.home;
     const dim = (c, a) => c.map((v, i) => Math.round(v * (1 - a) + SCRIM[i] * a));
@@ -921,30 +1008,21 @@ function makeEase(paint) {
 
 // ══════════════════════════ HOME ══════════════════════════
 function paintHomeArc(sweep) {
+  if (!dials.k) return;
   const on = sweep > 0.05;
   const lead = HOME_ARC_ANCHOR - sweep;
-  const mask = conicMask(lead, sweep);
-  const cap = bandPoint(lead, BAND_R);
+  const caps = [bandPoint(lead, BAND_R), bandPoint(HOME_ARC_ANCHOR, BAND_R)];
+  paintBand(dialCtx('home-band'), '#B90000', on && '#270E0E', RING_C, RING_C, lead, sweep, caps);
 
-  const fill = $('home-arc-fill');
-  fill.style.display = on ? 'block' : 'none';
-  fill.style.webkitMask = mask;
-  fill.style.mask = mask;
-
-  const tail = bandPoint(HOME_ARC_ANCHOR, BAND_R);
-  const capEl = $('home-arc-cap');
-  capEl.style.display = on ? 'block' : 'none';
-  placeCap(capEl, cap);
-  $('home-arc-tail').style.display = on ? 'block' : 'none';
-
-  // The bright tick row is clipped to the filled wedge plus a cap at each end.
-  const layers = mask + ',' + capMask(cap) + ',' + capMask(tail);
-  const clip = $('home-tick-clip');
-  clip.style.display = on ? 'block' : 'none';
-  clip.style.webkitMaskImage = layers;
-  clip.style.maskImage = layers;
-  clip.style.webkitMaskComposite = 'source-over,source-over';
-  clip.style.maskComposite = 'add,add';
+  // The bright tick rows show through the same shape: the wedge plus a cap at each end.
+  const g = dialCtx('home-lit');
+  g.clearRect(0, 0, DIAL, DIAL);
+  if (!on) return;
+  g.save();
+  arcPath(g, RING_C, RING_C, lead, sweep, caps);
+  g.clip();
+  g.drawImage(dials.lit, 0, 0, DIAL, DIAL);
+  g.restore();
 }
 
 const homeArc = makeEase(paintHomeArc);
@@ -1398,21 +1476,13 @@ function paintCalcArc(sweep) {
   // Each piece of type takes its colour from what ends up behind it, independently.
   for (const i of calcZones) i.paint.style.color = sweep >= i.exit ? '#270E0E' : '#FF0000';
 
+  if (!dials.k) return;
   const on = sweep > 0.05;
   const lead = CALC_ARC_ANCHOR - sweep;
-  const mask = conicMask(lead, sweep);
-  const cap = bandPoint(lead, BAND_R);
-
-  const fill = $('calc-arc-fill');
-  fill.style.display = on ? 'block' : 'none';
-  fill.style.webkitMask = mask;
-  fill.style.mask = mask;
-
-  // Leading cap rides the sweep; the tail cap is pinned at the anchor.
-  const capEl = $('calc-arc-cap');
-  capEl.style.display = on ? 'block' : 'none';
-  placeCap(capEl, cap);
-  $('calc-arc-tail').style.display = on ? 'block' : 'none';
+  // The leading cap rides the sweep; the tail is pinned at the anchor. The wedge turns
+  // about a point a little up and left of the ring's centre, as the prototype's did.
+  const caps = [bandPoint(lead, BAND_R), bandPoint(CALC_ARC_ANCHOR, BAND_R)];
+  paintBand(dialCtx('calc-band'), '#270E0E', on && '#FF0000', CALC_WEDGE_C.x, CALC_WEDGE_C.y, lead, sweep, caps);
 }
 
 const calcArc = makeEase(paintCalcArc);
@@ -2827,7 +2897,7 @@ function paintDrag() {
   // it - the one being swiped to once it is past halfway - rather than waiting for the
   // swipe to land, which left the top the last screen's colour for the whole of it.
   const over = drag.to && Math.abs(x) >= SWIPE_W / 2 ? drag.to : drag.from;
-  if (!framed && !solidBar()) edgeTint('rgb(' + (SCREEN_TOP[over] || SCREEN_TOP.home).join(',') + ')');
+  if (!framed) edgeTint('rgb(' + (SCREEN_TOP[over] || SCREEN_TOP.home).join(',') + ')');
   if (!drag.to) { from.style.transform = shift(x); return; }
   const to = $('screen-' + drag.to);
   if (onTop(drag.to)) {
